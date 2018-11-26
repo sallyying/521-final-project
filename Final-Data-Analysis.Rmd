@@ -1,7 +1,7 @@
 ---
 title: "Final Data Analysis Project"
-date:  "Write up due Dec 11 5 pm"
-output: html_notebook
+date:  "See Parts for Write-Up due Dates"
+output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
@@ -34,6 +34,7 @@ see Due dates in Sakai/Calendar for submissions
 To get started read in the training data:
 ```{r read-data, echo=TRUE}
 load("paintings_train.Rdata")
+load("paintings_test.Rdata")
 ```
 
 The Code Book is in the file `paris_paintings.md` provides more information about the data.
@@ -63,7 +64,7 @@ save(predictions, file="predict-test.Rdata")
 ```
 
 
-### Part I Write up *Due Dec 7 by 5; accepted until Dec 6 (5 points off if late)*
+### Part I Write up *Last day to submit is Dec 7 by 5; accepted until Dec 6 (5 points off if late)*
 
 Once you are satisfied with your model, provide a write up of your data analysis project in a new Rmd file/pdf file: `Part-I-Writeup.Rmd` by copying over salient parts of your R notebook. The written assignment consists of five parts:
 
