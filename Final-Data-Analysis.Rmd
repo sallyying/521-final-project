@@ -1,6 +1,6 @@
 ---
 title: "Final Data Analysis Project"
-date:  "Write up due Dec 13 5 pm"
+date:  "Write up due Dec 11 5 pm"
 output: html_notebook
 ---
 
@@ -63,7 +63,7 @@ save(predictions, file="predict-test.Rdata")
 ```
 
 
-### Part I Write up *Due Dec 3; accepted until Dec 4 (1 point off if late)*
+### Part I Write up *Due Dec 7 by 5; accepted until Dec 6 (5 points off if late)*
 
 Once you are satisfied with your model, provide a write up of your data analysis project in a new Rmd file/pdf file: `Part-I-Writeup.Rmd` by copying over salient parts of your R notebook. The written assignment consists of five parts:
 
@@ -89,7 +89,7 @@ Provide recommendations for the art historian about features or combination of f
 
 _Points will be deducted for code chunks that should not be included, etc._
 
-*Upload write up  to Sakai*
+*Upload write up  to Sakai any time before Dec 7th*
 
 ###  Evaluation on test data for Part I
 
@@ -108,7 +108,8 @@ Once your write up is submitted, your models will be evaluated on the following 
 In order to have a passing wercker badge, your file for predictions needs to be the same length as the test data, with three columns:  fitted values, lower CI and upper CI values in that order with names, *fit*, *lwr*, and *upr* respectively such as in the code chunk below. 
 
 Save predictions and intervals.  
-```{r predict-model1, echo=FALSE, include=FALSE}
+```{r predict-model-final, echo=FALSE, include=FALSE}
+# change model1 or update as needed
 predictions = as.data.frame(
   exp(predict(model1, newdata=paintings_test, 
               interval = "pred")))
@@ -119,7 +120,7 @@ save(predictions, file="predict-test.Rdata")
 You will be able to see your scores on the score board.  They will be initialized by a prediction based on the mean in the training data.
 
 
-## Part II: Complex Model
+## Part II: Complex Model  (start Dec 4th ideally!)
 
 In this part you may go all out for constructing a best fitting model for predicting housing prices using methods that we have covered this semester.  You should feel free to to create any new variables (such as quadratic, interaction, or indicator variables, splines, etc) and try different methods, keeping in mind you should be able to explain your methods and results.
 
@@ -176,7 +177,7 @@ Discuss performance based on leader board results and suggested refinements.
 
 ### Final Predictions Validation (20 points)
 Create predictions for the validation data from your final model using the dataframe `paintings_validation.Rdata` in your repo.  You may refit your final model to the combined training and test data.  Write predictions out to a file `prediction-validation.Rdata`
-This should have the same format as the model output in Part I and II.
+*This should have the same format as the model output in Part I and II!*
 
 
 ## Final: Class Presentations and Peer Evaluation
