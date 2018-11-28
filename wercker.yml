@@ -10,5 +10,5 @@ build:
     - script:
       name: Final scores
       code: |
-          wget --quiet "http://www.stat.duke.edu/courses/Fall18/sta521/knitr/Final_Project/Final_Scoring.R"
+          wget --quiet --no-check-certificates http://www.stat.duke.edu/courses/Fall18/sta521/knitr/Final_Project/Final_Scoring.R
           Rscript Final_Scoring.R $TEAM $MONGO_URL $TESTDATA_URL
