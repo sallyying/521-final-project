@@ -6,6 +6,9 @@ output: pdf_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
+library(dplyr)
+library(tidyr)
+library(stringr)
 ```
 
 
@@ -35,6 +38,7 @@ To get started read in the training data:
 ```{r read-data, echo=TRUE}
 load("paintings_train.Rdata")
 load("paintings_test.Rdata")
+set.seed(9)
 ```
 
 The Code Book is in the file `paris_paintings.md` provides more information about the data.
@@ -45,13 +49,70 @@ The Code Book is in the file `paris_paintings.md` provides more information abou
 
 Using EDA and any numerical summaries get to know the data -  identify what you might consider the 10 best variables for predicting `logprice` using scatterplots with other variables represented using colors or symbols, scatterplot matrices or conditioning plots.  
 
+```{r EDA}
+data = paintings_train
+
+str(data)
+
+# How many are missing
+ 
+# How many are characters that shouldbe recoded as factors? Do that...
+# Clean up these data...
+data = data %>% mutate(mat = str_replace_all(mat, "n/a", ""),
+                       material = str_replace_all(material, "n/a", ""),
+                       authorstyle = str_replace_all(mat, "n/a", ""))
+
+data = as_tibble(lapply(data, function(x) na_if(x, "")))
+  
+  
+head(is.na(data$mat))
+head(data$mat)
+
+var.type = lapply(data, function(x) class(x)) %>% unlist
+n.unique = lapply(data, function(x) length(unique(x))) %>% unlist
+n.missing = lapply(data, function(x) sum(is.na(x))) %>% unlist
+n.blank = lapply(data, function(x) sum(x=="")) %>% unlist
+n.blankormissing = lapply(data, function(x) sum(is.na(x)|x=="")) %>% unlist
+perc.missing = lapply(data, function(x) sum(is.na(x))/nrow(data)) %>% unlist
+
+df = data_frame(Name = colnames(data), VarType = var.type, Nunique = n.unique, NMissing = n.missing, NBlank = n.blank, NBlankOrMissing = n.blankormissing, PercMissing = perc.missing)
+
+var.type
+drop.cols = c("Price", "sale")
+
+
+# Fixing up some variables 
+table(data$Shape)
+# Combine oval, round, ronde, ovale, octagon... create category for others?
+table(data$material)
+
+data %>% group_by(winningbidder) %>% summarize(painting.cost = mean(exp(logprice)), purchases = n() , bigspenders = sum(exp(logprice))) %>% arrange(desc(bigspenders))
+
+library(ggplot2)
+ggplot(data%>%group_by(school_pntg) %>% summarize(avg = mean(logprice), sd = sd(logprice)), aes(x = school_pntg, y=avg)) + geom_bar(stat="identity") + geom_errorbar(aes(ymin = avg-2*sd, ymax = avg+2*sd))
+
+hist(x = data$school_pntg, y = data$logprice)
+
+data %>% group_by(school_pntg) %>% summarize(avg = mean(logprice), sd = sd(logprice), count = n())
+                                           
+```
+
+
+
+
 ### Build your first model
 
 In the first model predict the auction price `price` using the transformation `logprice` using at least 10 and up to 20 predictors and any interactions to build a model using linear regression.  You may use stepwise model selection to simplify the model using AIC and/or BIC.  For reference, we will fit the null model to initialize the leaderboard, but replace model1 with your recommended model.
 
 
 ```{r model1, echo=TRUE}
-model1 = lm(logprice ~ 1, data=paintings_train)
+model1 = lm(logprice ~ ., data=paintings_train)
+
+## Possible Models:
+# - Don't for get variable transformations! Consider Box Cox
+# - leaps with AIC and BIC
+# - Bayesian Model Averaging with different priors
+
 ```
 
 
@@ -157,7 +218,6 @@ Discuss performance based on leader board results and suggested refinements.
 * Variables: must include an explanation
 
 * Variable selection/shrinkage: must use appropriate method and include an explanation
-
 
 * Residual: must include a residual plot and a discussion
 
