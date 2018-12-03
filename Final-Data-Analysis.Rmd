@@ -49,9 +49,47 @@ Using EDA and any numerical summaries get to know the data -  identify what you 
 
 In the first model predict the auction price `price` using the transformation `logprice` using at least 10 and up to 20 predictors and any interactions to build a model using linear regression.  You may use stepwise model selection to simplify the model using AIC and/or BIC.  For reference, we will fit the null model to initialize the leaderboard, but replace model1 with your recommended model.
 
+```{r}
+library(ggplot2)
+library(GGally)
+hist(as.numeric(paintings_train$lot))
+hist(paintings_train$position)
+max(paintings_train$position)
+#outlier for position
+hist(paintings_train$year)
+ggplot(paintings_train, aes(x=origin_author))+geom_bar()
+ggplot(paintings_train, aes(x=origin_cat))+geom_bar()
+ggplot(paintings_train, aes(x=winningbiddertype))+geom_bar()
+ggplot(paintings_train, aes(x=endbuyer))+geom_bar()
+ggplot(paintings_train, aes(x=Interm))+geom_bar()
+ggplot(paintings_train, aes(x=type_intermed))+geom_bar()
+
+trainsub1=paintings_train %>% select(logprice,position,dealer,year,origin_author,origin_cat,winningbiddertype,endbuyer,Interm,type_intermed,type_intermed)
+
+ggpairs(trainsub1)
+```
+
 
 ```{r model1, echo=TRUE}
 model1 = lm(logprice ~ 1, data=paintings_train)
+
+#col_names<-["dealer","origin_author","origin_cat","school_pntg"]
+#df[] <- lapply(df[col_names] , factor)
+install.packages("magrittr")
+library(magrittr)
+library(glmnet)
+weitrain <- subset( Data, select = -c(d, b ) )
+paintings_train = paintings_train %>% mutate_if(is.character,funs(factor(.)));
+paintings_test = paintings_test %>% mutate_if(is.character,funs(factor(.)));
+#count
+
+train1=paintings_train %>% select(position,dealer,year,diff_origin,artistliving,Interm,type_intermed,Height_in,Width_in,Surface_Rect,Surface,nfigures,engraved,original,prevcoll,othartist,paired,figures,finished,lrgfont,landsALL,lands_sc,lands_elem,lands_figs,lands_ment,arch,mytho,peasant,othgenre,singlefig,portrait,still_life,discauth,history,allegory,pastorale,other,relig)
+modelt = tree(logprice ~position+dealer+year+origin_author+origin_cat+school_pntg+diff_origin+artistliving+authorstyle+winningbiddertype+endbuyer+Interm+type_intermed+Height_in+Width_in+Surface_Rect+Shape+Surface+mat+materialCat+nfigures+engraved+original+prevcoll+othartist+paired+figures+finished+lrgfont+landsALL+lands_sc+lands_elem+lands_figs+lands_ment+arch+mytho+peasant+othgenre+singlefig+portrait+still_life+discauth+history+allegory+pastorale+other+relig)
+model1 = lm(logprice ~, data=paintings_train)
+#aic.ols = step(model1, k = 2, trace = FALSE)
+cv.out = cv.glmnet(as.matrix(train1),as.matrix(paintings_train$logprice),alpha = 1)
+
+
 ```
 
 
@@ -179,7 +217,6 @@ Discuss performance based on leader board results and suggested refinements.
 ### Final Predictions Validation (20 points)
 Create predictions for the validation data from your final model using the dataframe `paintings_validation.Rdata` in your repo.  You may refit your final model to the combined training and test data.  Write predictions out to a file `prediction-validation.Rdata`
 *This should have the same format as the model output in Part I and II!*
-
 
 ## Final: Class Presentations and Peer Evaluation
 
