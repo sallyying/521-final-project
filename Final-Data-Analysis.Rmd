@@ -177,14 +177,7 @@ HighRollers = data %>% group_by(winningbidder) %>%
               select(winningbidder) %>%
               head(10) %>% as.list
 
-# 
-authorstandard=data %>% group_by(school_pntg) %>% summarize(count = n(), avg.spend = mean(logprice)/mean(data$logprice)) %>% arrange(desc(avg.spend))%>% as.list
 
-table1=data %>% group_by(authorstandard) %>% summarize(count = n(), avg.spend = mean(logprice)/mean(data$logprice))%>% filter(abs(avg.spend-1)>0.1) %>% arrange(desc(avg.spend))
-
-table2=data %>% group_by(authorstyle) %>% summarize(count = n(), avg.spend = mean(logprice)/mean(data$logprice))%>% arrange(desc(avg.spend))
-
-table3=data %>% group_by(artistliving) %>% summarize(count = n(), avg.spend = mean(logprice)/mean(data$logprice))%>% arrange(desc(avg.spend))
 
 
 ## Train data
