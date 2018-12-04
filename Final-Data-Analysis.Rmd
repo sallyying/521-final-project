@@ -188,8 +188,9 @@ data.train = paintings_train %>% mutate( # Painting physical features
                                          # Sale Features
                                          position = min(1, position),
                                          # Buyer Characteristics
-                                         High_Roller = ifelse(winningbidder %in% unlist(HighRollers), 1, 0)
-) %>% select(logprice, Shape, log.Surface, Height_in, Width_in, year, High_Roller, Nfigures, Material, position) %>% na.omit()
+                                         High_Roller = ifelse(winningbidder %in% unlist(HighRollers), 1, 0),
+                                         endbuyer = ifelse(is.na(endbuyer), "NA", endbuyer)
+) %>% select(logprice, Shape, log.Surface, Height_in, Width_in, year, High_Roller, Nfigures, Material, position, endbuyer) %>% na.omit()
 
 # test.lm = glm(logprice~ Shape+log.Surface+Material+Nfigures+Shape*log.Surface+Height_in+Width_in+year+High_Roller, data = data.train)
 test.lm = glm(logprice~.^2, data = data.train)
@@ -197,11 +198,31 @@ summary(test.lm)
 
 max(paintings_train$winningbidder %in% as.list(HighRollers))
 
+colnames(data)[42:59]
 
-lapply(data.train, function(x) sum(is.na(x)))
+painting.features = glm(logprice~.^2, data = data[,c(10,42:59)])
+summary(painting.features)
+
+library(glmnet)
+library(randomForest)
 
 
-min(data.train$Height_in)
+
+randomForest(as.numeric(data[,10])~ as.numeric(data[,c(42:59)]))
+
+lasso = cv.glmnet(y = as.numeric(data[,10]), x = as.numeric(data[,c(42:59)]),
+                       standardize=TRUE, # Scaling
+                       # lambda=grid, # Using an AutoGrid for now 
+                       alpha = 1)
+plot(lasso)
+bestlambda = lasso$lambda.min
+lasso.pred=predict(lasso,
+                   newx=x.test,
+                   s=bestlambda)  
+# Creating a table of the selected variables
+Selected.Variables = as.data.frame((coef(lasso, bestlambda))
+                                   [which(coef(lasso, bestlambda)!=0),])
+
 
 # Surface summary
 #  - Shape + Surface combination
