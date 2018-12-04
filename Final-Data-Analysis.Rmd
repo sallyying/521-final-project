@@ -52,21 +52,18 @@ In the first model predict the auction price `price` using the transformation `l
 ```{r}
 library(ggplot2)
 library(GGally)
-hist(as.numeric(paintings_train$lot))
-hist(paintings_train$position)
-max(paintings_train$position)
-#outlier for position
-hist(paintings_train$year)
-ggplot(paintings_train, aes(x=origin_author))+geom_bar()
-ggplot(paintings_train, aes(x=origin_cat))+geom_bar()
-ggplot(paintings_train, aes(x=winningbiddertype))+geom_bar()
-ggplot(paintings_train, aes(x=endbuyer))+geom_bar()
-ggplot(paintings_train, aes(x=Interm))+geom_bar()
-ggplot(paintings_train, aes(x=type_intermed))+geom_bar()
+data.train
+table1=data %>% group_by(authorstandard) %>% summarize(count = n(), avg.spend = mean(logprice)/mean(data$logprice))%>% filter(avg.spend>mean(avg.spend)) %>% arrange(desc(avg.spend))
+data.train$authorstandard=ifelse(data.train$authorstandard  %in% table1$authorstandard, 1, 0)
 
-trainsub1=paintings_train %>% select(logprice,position,dealer,year,origin_author,origin_cat,winningbiddertype,endbuyer,Interm,type_intermed,type_intermed)
 
-ggpairs(trainsub1)
+data.train = paintings_train %>% mutate(lot = suppressWarnings(as.numeric(lot)),
+dealer = factor(dealer),                          origin_author = factor(origin_author),
+origin_cat=factor(origin_author),
+winningbiddertype=factor(winningbiddertype),
+endbuyer=factor(endbuyer),
+type_intermed=factor(type_intermed)
+)
 ```
 
 
