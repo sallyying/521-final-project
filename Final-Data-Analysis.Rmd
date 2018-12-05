@@ -234,7 +234,7 @@ data.train$authorstyle[data.train$authorstyle %in% c("")] <- "missing"
 # data.train = data.train%>% select(logprice, Shape, log.Surface, Height_in, Width_in, year, High_Roller, Nfigures, Material, position, endbuyer, origin_author, winningbiddertype, type_intermed, dealer, authorstyle, authorstandard, school_pntg, endbuyer, dealer, origin_author, winningbiddertype, type_intermed) %>% na.omit()
 
 # New version to explore painting content
-data.train = data.train%>% select(logprice, Shape, log.Surface, Height_in, Width_in, year, High_Roller, Nfigures, Material, position, endbuyer, origin_author, winningbiddertype, type_intermed, dealer, authorstyle, authorstandard, school_pntg, endbuyer, dealer, origin_author, winningbiddertype, type_intermed, engraved, original, prevcoll, othartist, paired, figures, lrgfont, relig, landsALL, lands_sc, lands_elem, lands_figs, lands_ment, arch, mytho, peasant, othgenre, singlefig, portrait, still_life, discauth, history, allegory, pastorale, other) %>% na.omit()
+data.train = data.train%>% select(logprice, Shape, log.Surface, Height_in, Width_in, year, High_Roller, Nfigures, Material, position, endbuyer, origin_author, winningbiddertype, type_intermed, dealer, authorstyle, authorstandard, artistliving, school_pntg, endbuyer, dealer, origin_author, winningbiddertype, type_intermed, engraved, original, prevcoll, othartist, paired, figures, lrgfont, relig, landsALL, lands_sc, lands_elem, lands_figs, lands_ment, arch, mytho, peasant, othgenre, singlefig, portrait, still_life, discauth, history, allegory, pastorale, other) %>% na.omit()
 
 
 df.matrix = as.data.frame(data.train)
