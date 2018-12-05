@@ -50,20 +50,38 @@ Using EDA and any numerical summaries get to know the data -  identify what you 
 In the first model predict the auction price `price` using the transformation `logprice` using at least 10 and up to 20 predictors and any interactions to build a model using linear regression.  You may use stepwise model selection to simplify the model using AIC and/or BIC.  For reference, we will fit the null model to initialize the leaderboard, but replace model1 with your recommended model.
 
 ```{r}
+library(magrittr)
+library(glmnet)
 library(ggplot2)
 library(GGally)
-data.train
-table1=data %>% group_by(authorstandard) %>% summarize(count = n(), avg.spend = mean(logprice)/mean(data$logprice))%>% filter(avg.spend>mean(avg.spend)) %>% arrange(desc(avg.spend))
-data.train$authorstandard=ifelse(data.train$authorstandard  %in% table1$authorstandard, 1, 0)
+#table1=data %>% group_by(authorstandard) %>% summarize(count = n(), avg.spend = mean(logprice)/mean(data$logprice))%>% filter(avg.spend>mean(avg.spend)) %>% arrange(desc(avg.spend))
+#data.train$authorstandard=ifelse(data.train$authorstandard  %in% table1$authorstandard, 1, 0)
 
-
-data.train = paintings_train %>% mutate(lot = suppressWarnings(as.numeric(lot)),
+data.train = paintings_train %>% mutate(lot =ifelse(!grepl("\\D", lot) ,as.numeric(lot),NaN),
 dealer = factor(dealer),                          origin_author = factor(origin_author),
 origin_cat=factor(origin_author),
 winningbiddertype=factor(winningbiddertype),
 endbuyer=factor(endbuyer),
 type_intermed=factor(type_intermed)
 )
+#Here I transform lot to numeric number as it is defined. I will set the lot as NA if the string contains letters. Other variables I transformed them into factor.
+
+hist(data.train$lot)
+hist(data.train$position)
+max(data.train$position)
+#outlier for position
+hist(data.train$year)
+ggplot(data.train, aes(x=origin_author))+geom_bar()
+ggplot(data.train, aes(x=origin_cat))+geom_bar()
+ggplot(data.train, aes(x=winningbiddertype))+geom_bar()
+ggplot(data.train, aes(x=endbuyer))+geom_bar()
+ggplot(data.train, aes(x=Interm))+geom_bar()
+ggplot(data.train, aes(x=type_intermed))+geom_bar()
+
+ggpairs(data.train,columns = c("logprice", "lot", "dealer"))
+ggpairs(data.train,columns = c("logprice", "origin_author", "winningbiddertype"))
+ggpairs(data.train,columns = c("logprice", "endbuyer", "type_intermed"))
+
 ```
 
 
@@ -72,9 +90,6 @@ model1 = lm(logprice ~ 1, data=paintings_train)
 
 #col_names<-["dealer","origin_author","origin_cat","school_pntg"]
 #df[] <- lapply(df[col_names] , factor)
-install.packages("magrittr")
-library(magrittr)
-library(glmnet)
 weitrain <- subset( Data, select = -c(d, b ) )
 paintings_train = paintings_train %>% mutate_if(is.character,funs(factor(.)));
 paintings_test = paintings_test %>% mutate_if(is.character,funs(factor(.)));
