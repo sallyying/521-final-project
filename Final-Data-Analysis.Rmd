@@ -9,6 +9,7 @@ knitr::opts_chunk$set(echo = FALSE)
 library(dplyr)
 library(tidyr)
 library(stringr)
+library(knitr)
 library(ggplot2)
 ```
 
@@ -190,24 +191,27 @@ table3=data %>% group_by(artistliving) %>% summarize(count = n(), avg.spend = me
 ## Train data
 # Nfigures > 1
 # Fix Shape - dichotomous(round or square/rect)
-data.train = paintings_train %>% mutate( # Painting physical features
-                                         Shape = ifelse(Shape=="squ_rect", 1, 0),
-                                         log.Surface = log(Surface),
-                                         Height_in = coalesce(Height_in, Diam_in),
-                                         Width_in = coalesce(Width_in, Diam_in),
-                                         year = factor(year),
-                                         Nfigures = ifelse(nfigures>1, 1, 0),
-                                         Material = material %in% c("cuivre", "argent"),
-                                         # Sale Features
-                                         position = min(1, position),
-                                         # Buyer Characteristics
-                                         High_Roller = ifelse(winningbidder %in% unlist(HighRollers), 1, 0),
-                                         endbuyer = factor(endbuyer),
-                                         dealer = factor(dealer),
-                                         origin_author = factor(origin_author),
-                                         winningbiddertype = factor(winningbiddertype),
-                                         type_intermed = factor(type_intermed)
-                                         
+data.train = paintings_train %>% 
+      mutate( # Painting physical features
+           Shape = ifelse(Shape=="squ_rect", 1, 0),
+           log.Surface = log(Surface),
+           Height_in = coalesce(Height_in, Diam_in),
+           Width_in = coalesce(Width_in, Diam_in),
+           year = factor(year),
+           Nfigures = ifelse(nfigures>1, 1, 0),
+           Material = material %in% c("cuivre", "argent"),
+           # Sale Features
+           position = min(1, position),
+           # Buyer Characteristics
+           High_Roller = ifelse(winningbidder %in% 
+                                  unlist(HighRollers), 1, 0),
+           endbuyer = factor(endbuyer),
+           dealer = factor(dealer),
+           origin_author = factor(origin_author),
+           winningbiddertype = factor(winningbiddertype),
+           type_intermed = factor(ifelse(type_intermed=="", 
+                                         "None",
+                                         type_intermed))
 ) 
 # %>% select(logprice, Shape, log.Surface, Height_in, Width_in, year, High_Roller, Nfigures, Material, position, endbuyer, origin_author, winningbiddertype, type_intermed, dealer
 #              ) %>% na.omit()
@@ -234,7 +238,11 @@ data.train$authorstyle[data.train$authorstyle %in% c("")] <- "missing"
 
 # test.lm = glm(logprice~ Shape+log.Surface+Material+Nfigures+Shape*log.Surface+Height_in+Width_in+year+High_Roller, data = data.train)
 
-data.train = data.train%>% select(logprice, Shape, log.Surface, Height_in, Width_in, year, High_Roller, Nfigures, Material, position, endbuyer, origin_author, winningbiddertype, type_intermed, dealer, authorstyle, authorstandard, school_pntg, endbuyer, dealer, origin_author, winningbiddertype, type_intermed) %>% na.omit()
+# data.train = data.train%>% select(logprice, Shape, log.Surface, Height_in, Width_in, year, High_Roller, Nfigures, Material, position, endbuyer, origin_author, winningbiddertype, type_intermed, dealer, authorstyle, authorstandard, school_pntg, endbuyer, dealer, origin_author, winningbiddertype, type_intermed) %>% na.omit()
+
+# New version to explore painting content
+data.train = data.train%>% select(logprice, Shape, log.Surface, Height_in, Width_in, year, High_Roller, Nfigures, Material, position, endbuyer, origin_author, winningbiddertype, type_intermed, dealer, authorstyle, authorstandard, school_pntg, endbuyer, dealer, origin_author, winningbiddertype, type_intermed, engraved, original, prevcoll, othartist, paired, figures, lrgfont, relig, landsALL, lands_sc, lands_elem, lands_figs, lands_ment, arch, mytho, peasant, othgenre, singlefig, portrait, still_life, discauth, history, allegory, pastorale, other) %>% na.omit()
+
 
 df.matrix = as.data.frame(data.train)
 
@@ -257,13 +265,12 @@ test.lm = glm(logprice~.^2, data = na.omit(data.train))
 summary(test.lm)
 
 
-
-randomForest(as.numeric(data[,10])~ as.numeric(data[,c(42:59)]))
-
 lasso = cv.glmnet(y = as.numeric(data[,10]), x = as.numeric(data[,c(42:59)]),
-                       standardize=TRUE, # Scaling
+                       standardize=TRUE,# Scaling
+                       data = na.omit(data.train),
                        # lambda=grid, # Using an AutoGrid for now 
                        alpha = 1)
+
 plot(lasso)
 bestlambda = lasso$lambda.min
 lasso.pred=predict(lasso,
@@ -276,7 +283,6 @@ Selected.Variables = as.data.frame((coef(lasso, bestlambda))
 
 # Surface summary
 #  - Shape + Surface combination
-
 # Test data
 
 data%>% filter(!is.na(Diam_in))
@@ -285,10 +291,12 @@ data%>% filter(!is.na(Diam_in))
 
 ```{r LASSO}
 library(glmnet)
-lasso = cv.glmnet(y = data.train[,1], 
-                  x = data.train[,-1]%>%as.matrix(),
-                       standardize=TRUE, # Scaling
-                       alpha = 1)
+y = data.train[,1]
+x = model.matrix(logprice ~ .^2, data = data.train)
+lasso = cv.glmnet(y = y, 
+                  x = x,
+                  standardize=TRUE,
+                  alpha = 1)
 
 lapply(data.train, function(x) max(is.na(x)))
 
@@ -435,8 +443,29 @@ save(predictions, file="predict-test.Rdata")
 Once you are satisfied with your model, provide a write up of your data analysis project in a new Rmd file/pdf file: `Part-I-Writeup.Rmd` by copying over salient parts of your R notebook. The written assignment consists of five parts:
 
 1. Introduction: Summary of problem and objectives (5 points)
+Data cleaning - 
+  - variables with a lot of factors, difficult to interpret
+  - missing values. We will work to impute
+
+Many variables -> we are working towards interpretability
+  - 3D plot to check for interactions
+  - pairs of variables
+
 
 2. Exploratory data analysis (10 points): must include three correctly labeled graphs and an explanation that highlight the most important features that went into your model building.
+  - log transform of surface
+  - box-tidwell for other variables
+  - 
+  
+  Transform variables initially
+  OLS - describe variable transformations
+  - stepwise - which variables get selected here when we include the interaction
+  
+  
+  BMA - find the highest probability model and best predictive model
+  
+  
+
 
 3. Development and assessment of an initial model (10 points)
 
