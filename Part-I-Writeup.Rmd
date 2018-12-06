@@ -243,6 +243,7 @@ for (i in 1:ncol(test)) print(paste0(colnames(test)[i], ":", round(mean(test[,i]
 
 
 * Model selection: must include a discussion
+
 ```{r BIC}
 model1 = lm(logprice ~ . +log(lot) + lot:dealer + log.Surface:Shape + type_intermed:endbuyer + dealer:year -winningbiddertype, data.train)
 
@@ -351,6 +352,14 @@ lasso.coverage = In.Interval(lower = lasso.predictions$lower,
 
 ```
 
+```{r rmse}
+#in sample rmse
+rmse_ols=RMSE(exp(predict(model1)),exp(data.train$logprice))
+rmse_aic=RMSE(exp(predict(model2)),exp(data.train$logprice))
+rmse_bic=RMSE(exp(predict(model3)),exp(data.train$logprice))
+rmse = data_frame(model=c("ols","aic","bic"),rmse=c(rmse_ols,rmse_aic,rmse_bic))
+kable(rmse)
+```
 
 
 * Residual: must include residual plot(s) and a discussion.  
