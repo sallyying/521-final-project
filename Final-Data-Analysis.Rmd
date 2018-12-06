@@ -6,6 +6,11 @@ output: pdf_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(knitr)
+library(ggplot2)
 ```
 
 
@@ -35,6 +40,8 @@ To get started read in the training data:
 ```{r read-data, echo=TRUE}
 load("paintings_train.Rdata")
 load("paintings_test.Rdata")
+set.seed(9)
+
 ```
 
 The Code Book is in the file `paris_paintings.md` provides more information about the data.
@@ -45,9 +52,123 @@ The Code Book is in the file `paris_paintings.md` provides more information abou
 
 Using EDA and any numerical summaries get to know the data -  identify what you might consider the 10 best variables for predicting `logprice` using scatterplots with other variables represented using colors or symbols, scatterplot matrices or conditioning plots.  
 
-### Build your first model
+```{r EDA}
+library(ggplot2)
 
-In the first model predict the auction price `price` using the transformation `logprice` using at least 10 and up to 20 predictors and any interactions to build a model using linear regression.  You may use stepwise model selection to simplify the model using AIC and/or BIC.  For reference, we will fit the null model to initialize the leaderboard, but replace model1 with your recommended model.
+data = paintings_train
+
+str(data)
+
+# How many are missing
+ 
+# How many are characters that shouldbe recoded as factors? Do that...
+# Clean up these data...
+data = data %>% mutate(mat = str_replace_all(mat, "n/a", ""),
+                       material = str_replace_all(material, "n/a", ""),
+                       authorstyle = str_replace_all(mat, "n/a", ""))
+
+data = as_tibble(lapply(data, function(x) na_if(x, "")))
+
+## Summarize Variables 
+var.type = lapply(data, function(x) class(x)) %>% unlist
+n.unique = lapply(data, function(x) length(unique(x))) %>% unlist
+n.missing = lapply(data, function(x) sum(is.na(x))) %>% unlist
+n.blank = lapply(data, function(x) sum(x=="")) %>% unlist
+n.blankormissing = lapply(data, function(x) sum(is.na(x)|x=="")) %>% unlist
+perc.missing = lapply(data, function(x) sum(is.na(x))/nrow(data)) %>% unlist
+
+df = data_frame(Name = colnames(data), 
+                VarType = var.type, 
+                Nunique = n.unique, 
+                NMissing = n.missing,
+                NBlank = n.blank, 
+                NBlankOrMissing = n.blankormissing, 
+                PercMissing = perc.missing)
+
+drop.cols = c("Price", "sale")
+
+write.csv(df, "PaintingFeaturesDesc.csv")
+
+
+# Fixing up some variables 
+table(data$Shape)
+# Combine oval, round, ronde, ovale, octagon... create category for others?
+table(data$material)
+
+data %>% group_by(winningbidder) %>% summarize(painting.cost = mean(exp(logprice)), purchases = n() , bigspenders = sum(exp(logprice))) %>% arrange(desc(bigspenders))
+
+ggplot(data%>%group_by(school_pntg) %>% summarize(avg = mean(logprice), sd = sd(logprice)), aes(x = school_pntg, y=avg)) + geom_bar(stat="identity") + geom_errorbar(aes(ymin = avg-2*sd, ymax = avg+2*sd))
+
+#hist(x = data$school_pntg, y = data$logprice)
+
+data %>% group_by(school_pntg) %>% summarize(avg = mean(logprice), sd = sd(logprice), count = n())
+
+
+
+
+# Look at how the material can influence the value of the painting
+plot.df = data%>%select(logprice, Surface, Surface_Rect, Surface_Rnd, Shape, Diam_in, Height_in, Width_in, material, mat) %>% mutate(hw_ratio = max(Height_in/Width_in, Width_in/Height_in)) %>% arrange(desc(logprice))
+
+ggplot(data= plot.df, aes(x = Width_in, y = Height_in, color = logprice)) + geom_point() + geom_abline(intercept = 0, slope = 1)
+
+ggplot(data= plot.df, aes(x = hw_ratio, y = log(Surface), size = logprice, color = logprice)) + geom_point() + xlim(1,3)
+
+# Note that these effects are just marginal, there may be some other variables that are related to this
+
+ggplot(data= plot.df, aes(x = log(Surface), y = logprice, color = logprice)) + geom_point()
+
+ggplot(data= data, aes(x = year, y = logprice, color = school_pntg)) + geom_point()
+ggplot(data= data, aes(x = position, y = logprice, color = school_pntg)) + geom_point()
+
+
+## Looking at the big shots of the art world
+# Author names - authorstandard
+data %>% group_by(authorstandard) %>% summarize(count = n(), avg.spend = mean(logprice)/mean(data$logprice)) %>% filter(count>10) %>% arrange(desc(avg.spend))
+
+# Winning bidder = awinningbidder
+HighRollers = data %>% group_by(winningbidder) %>% 
+              summarize(count = n(), avg.spend = mean(logprice)/mean(data$logprice)) %>% 
+              filter(count>10) %>% arrange(desc(avg.spend)) %>% head(10) %>% select(winningbidder) %>%
+              head(10) %>% as.list
+
+data %>% group_by(winningbidder) %>% 
+              summarize(count = n(), avg.spend = mean(logprice)/mean(data$logprice), max.spend = max(logprice)/mean(data$logprice), minspend = min(logprice)/mean(data$logprice)) %>% 
+              filter(count>10) %>% arrange(desc(avg.spend)) 
+
+
+data %>% group_by(mat) %>% summarize(count = n(), avg.spend = mean(logprice)/mean(data$logprice)) %>% filter(count>=1) %>% arrange(desc(avg.spend))
+data %>% group_by(material) %>% summarize(count = n(), avg.spend = mean(logprice)/mean(data$logprice)) %>% filter(count>10) %>% arrange(desc(avg.spend))
+
+# Nfigures - change this into categorical variable... == 0, > 1
+data %>% group_by(nfigures) %>% summarize(count = n(), avg.spend = mean(logprice)/mean(data$logprice)) %>% filter(count>=1) %>% arrange(desc(avg.spend))
+# Engraved - Definitely useable
+data %>% group_by(engraved) %>% summarize(count = n(), avg.spend = mean(logprice)/mean(data$logprice)) %>% filter(count>10) %>% arrange(desc(avg.spend))
+# If the original's location, probably won't want to include this...
+data %>% group_by(original) %>% summarize(count = n(), avg.spend = mean(logprice)/mean(data$logprice)) %>% filter(count>10) %>% arrange(desc(avg.spend))
+# If this is sold as a collection
+data %>% group_by(prevcoll) %>% summarize(count = n(), avg.spend = mean(logprice)/mean(data$logprice)) %>% filter(count>10) %>% arrange(desc(avg.spend))
+# includes large font
+data %>% group_by(lrgfont) %>% summarize(count = n(), avg.spend = mean(logprice)/mean(data$logprice)) %>% filter(count>10) %>% arrange(desc(avg.spend))
+
+## Material 
+data %>% group_by(material) %>% summarize(count = n(), avg.spend = mean(logprice)/mean(data$logprice), minspend = min(logprice)/mean(data$logprice), maxspend = max(logprice)/mean(data$logprice)) %>% 
+              filter(count>1) %>% arrange(desc(avg.spend)) 
+
+## Buyer Characteristics
+data %>% group_by(type_intermed, endbuyer) %>% summarize(count = n(), avg.spend = mean(logprice)/mean(data$logprice), minspend = min(logprice)/mean(data$logprice), maxspend = max(logprice)/mean(data$logprice)) %>% 
+              filter(count>1) %>% arrange(desc(avg.spend)) 
+
+data %>% group_by(winningbiddertype) %>% summarize(count = n(), avg.spend = mean(logprice)/mean(data$logprice)) %>% filter(count>10) %>% arrange(desc(avg.spend))
+# Endbuyer
+data %>% group_by(endbuyer) %>% summarize(count = n(), avg.spend = mean(logprice)/mean(data$logprice)) %>% filter(count>10) %>% arrange(desc(avg.spend))
+# Type of intermediary - we can most likely change this to intermed dichotomous *endbuyer
+data %>% group_by(type_intermed) %>% summarize(count = n(), avg.spend = mean(logprice)/mean(data$logprice)) %>% filter(count>10) %>% arrange(desc(avg.spend))
+
+
+
+```
+
+
 
 ```{r}
 library(magrittr)
@@ -85,22 +206,345 @@ ggpairs(data.train,columns = c("logprice", "endbuyer", "type_intermed"))
 ```
 
 
+
+```{r Create Data for Prediciton}
+# Formatting for some variables
+# Top 10 bidders
+HighRollers = data %>% group_by(winningbidder) %>% 
+              summarize(count = n(), avg.spend = mean(logprice)/mean(data$logprice)) %>% 
+              filter(count>10) %>% arrange(desc(avg.spend)) %>% head(10) %>%
+              select(winningbidder) %>%
+              head(10) %>% as.list
+
+
+
+
+## Train data
+# Nfigures > 1
+# Fix Shape - dichotomous(round or square/rect)
+data.train = paintings_train %>% 
+      mutate( # Painting physical features
+           Shape = ifelse(Shape=="squ_rect", 1, 0),
+           log.Surface = log(Surface),
+           Height_in = coalesce(Height_in, Diam_in),
+           Width_in = coalesce(Width_in, Diam_in),
+           year = factor(year),
+           Nfigures = ifelse(nfigures>1, 1, 0),
+           Material = material %in% c("cuivre", "argent"),
+           # Sale Features
+           position = min(1, position),
+           # Buyer Characteristics
+           High_Roller = ifelse(winningbidder %in% 
+                                  unlist(HighRollers), 1, 0),
+           endbuyer = factor(endbuyer),
+           dealer = factor(dealer),
+           origin_author = factor(origin_author),
+           winningbiddertype = factor(winningbiddertype),
+           type_intermed = factor(ifelse(type_intermed=="", 
+                                         "None",
+                                         type_intermed))
+) 
+# %>% select(logprice, Shape, log.Surface, Height_in, Width_in, year, High_Roller, Nfigures, Material, position, endbuyer, origin_author, winningbiddertype, type_intermed, dealer
+#              ) %>% na.omit()
+
+data.train = data.train%>% mutate(school_pntg=as.factor(school_pntg),
+                     authorstandard=as.factor(authorstandard),
+                artistliving=as.factor(artistliving),
+                     authorstyle=as.factor(authorstyle))
+#variable description tables
+table=data.train %>% group_by(school_pntg) %>% summarize(count = n(), avg.spend = mean(logprice)/mean(data.train$logprice)) %>% arrange(desc(avg.spend))
+
+table1=data.train %>% group_by(authorstandard) %>% summarize(count = n(), avg.spend = mean(logprice)/mean(data.train$logprice))%>% filter(abs(avg.spend-1)>0.1) %>% arrange(desc(avg.spend))
+
+table2=data.train %>% group_by(authorstyle) %>% summarize(count = n(), avg.spend = mean(logprice)/mean(data.train$logprice))%>% arrange(desc(avg.spend))
+
+table3=data.train %>% group_by(artistliving) %>% summarize(count = n(), avg.spend = mean(logprice)/mean(data.train$logprice))%>% arrange(desc(avg.spend))
+#reduce factor levels for three varaibles
+levels(data.train$school_pntg) <- c(levels(data.train$school_pntg), "other or unknown") 
+data.train$school_pntg[data$school_pntg %in% c("A","S","G","X")] <- "other or unknown" 
+data.train$authorstandard<- ifelse(data.train$authorstandard  %in% table1$authorstandard, 1, 0)
+levels(data.train$authorstyle) <- c(levels(data.train$authorstyle), "other","missing") 
+data.train$authorstyle[data.train$authorstyle %in% c("m","g","o","al","co","pa")] <- "other" 
+data.train$authorstyle[data.train$authorstyle %in% c("")] <- "missing" 
+
+# test.lm = glm(logprice~ Shape+log.Surface+Material+Nfigures+Shape*log.Surface+Height_in+Width_in+year+High_Roller, data = data.train)
+
+# data.train = data.train%>% select(logprice, Shape, log.Surface, Height_in, Width_in, year, High_Roller, Nfigures, Material, position, endbuyer, origin_author, winningbiddertype, type_intermed, dealer, authorstyle, authorstandard, school_pntg, endbuyer, dealer, origin_author, winningbiddertype, type_intermed) %>% na.omit()
+
+# New version to explore painting content
+data.train = data.train%>% select(logprice, Shape, log.Surface, Height_in, Width_in, year, High_Roller, Nfigures, Material, position, endbuyer, origin_author, winningbiddertype, type_intermed, dealer, authorstyle, authorstandard, artistliving, school_pntg, endbuyer, dealer, origin_author, winningbiddertype, type_intermed, engraved, original, prevcoll, othartist, paired, figures, lrgfont, relig, landsALL, lands_sc, lands_elem, lands_figs, lands_ment, arch, mytho, peasant, othgenre, singlefig, portrait, still_life, discauth, history, allegory, pastorale, other) %>% na.omit()
+
+
+df.matrix = as.data.frame(data.train)
+
+library(randomForest)
+#randomForest(data.train[,1]~ data.train%>% select(-logprice))
+
+test.forest = randomForest(logprice~., data = data.train)
+varImpPlot(test.forest)
+
+randomForest()
+as.data.frame(data.train)[,-1]
+str(data.train)
+as_data_frame(data.train[,-1])
+
+
+data.train%>%as.matrix()
+## Modeling
+
+test.lm = glm(logprice~.^2, data = na.omit(data.train))
+summary(test.lm)
+
+
+lasso = cv.glmnet(y = as.numeric(data[,10]), x = as.numeric(data[,c(42:59)]),
+                       standardize=TRUE,# Scaling
+                       data = na.omit(data.train),
+                       # lambda=grid, # Using an AutoGrid for now 
+                       alpha = 1)
+
+plot(lasso)
+bestlambda = lasso$lambda.min
+lasso.pred=predict(lasso,
+                   newx=x.test,
+                   s=bestlambda)  
+# Creating a table of the selected variables
+Selected.Variables = as.data.frame((coef(lasso, bestlambda))
+                                   [which(coef(lasso, bestlambda)!=0),])
+
+
+# Surface summary
+#  - Shape + Surface combination
+# Test data
+
+data%>% filter(!is.na(Diam_in))
+
+```
+```{r OLS,echo=False, warning=FALSE}
+attach(data.train)
+model1 = lm(logprice ~ ., data.train)
+summary(model1)
+
+par(mfrow=c(2,2))
+plot(model1)
+#Dataframe for Table
+model1coef= data.frame(
+  names(model1$coefficients),
+  model1$coefficients,
+  confint(model1)
+) %>%
+  group_by(model1.coefficients) %>%
+  arrange(desc(model1.coefficients))
+colnames(model1coef) = c("predictors coefficients", "fit", "2.5\\%", "97.5\\%")
+#draw the table
+library(dplyr)
+library(knitr)
+library(kableExtra)
+model1coef %>%
+  knitr::kable(caption = "Table of OLS Coefficients and Their Confidence Interval", 
+        escape = FALSE) %>%
+  kable_styling(latex_options = 'hold_position')
+
+##boxcox transformation may not be realistc for factors
+```
+
+From the OLS, we get 11 variables with coefficients estimasted as NA, including "position", four levels under "winningbiddertype", all levels under "type_intermed", "Interm", and binary variable "lands_ment". Given this result, we may consider both "interm" and "type_intermed" are not useful in predictions.
+
+As we can see from the OLS plot, the assumption of constant variance is generally satisfied, although it is in slightly U-shape. The normal distribution assumption is also well satisfied. Assumptions of OLS are satisfied in general.
+
+Point 713, 13, 81 seems to be outliers. There are no points with high leverage. And it seems there are no highly influential points.
+
+
+#more writeups from Brian
+#why we would have NA coefficients for other variables?
+
+```{r}
+#linear models with interactions
+attach(data.train)
+model1.2 = lm(logprice~(.)^2, data =data.train)
+#Summary of Linear Model with Interactions
+summary(model1.2)
+variable.names(model1.2)
+```
+#not quite sure what to get from the interaction model
+We can learn from the interaction model about some interactions that are interpretable and significant at the same time, including "log.Surface:Height_in", "log.Surface:Width_in",     
+and "Shape:log.Surface". We may add them to our model.
+
+
+```{r}
+#AIC
+model2 = step(model1,direction="both",k=2, trace =FALSE)
+summary(model2)
+#BIC
+model3 = step(model1,direction="both",k=log(nrow(data.train)), trace=FALSE)
+summary(model3)
+#plot coefficient comparison model btw aic, bic, and ols
+ beta_bic_aic_ols = data_frame(name=names(coef(model1)),OLS=coef(model1))%>%
+  left_join(data_frame(name=names(coef(model2)),AIC=coef(model2)))%>%
+  left_join(data_frame(name=names(coef(model3)),BIC=coef(model3)))
+kable(beta_bic_aic_ols)
+```
+As is shown in the table, 22 variables are selected by AIC, while 14 variables are selected by BIC. BIC excluded all variables that are excluded by AIC, except for "Interm", which is excluded by AIC but included in BIC model.
+Under AIC model, variables including get significant result under 95% confidence level. 
+
+```{r}
+#BMA model
+#why position only have one value????
+library(BAS)
+basg=bas.lm(logprice ~ .-position
+-authorstyle
+-school_pntg
+, data=data.train,
+prior="g-prior", a=nrow(data.train), modelprior=uniform(),
+method="MCMC", MCMC.iterations = 200000, thin = 20)
+plot(basg)
+diagnostics(basg, type="pip")
+#pred=predict(baslm, newdata = df, estimator='HPM')
+basz = bas.lm(logprice ~ .-position
+-authorstyle
+-school_pntg, data=data.train,
+               prior="JZS", a=nrow(data.train), modelprior=uniform(),
+               method="MCMC", MCMC.iterations = 200000, thin = 20, 
+               initprobs="marg-eplogp")
+plot(basz)
+diagnostics(basz, type="pip")
+```
+
+```{r LASSO}
+library(glmnet)
+y = data.train[,1]
+x = model.matrix(logprice ~ .^2, data = data.train)
+lasso = cv.glmnet(y = y, 
+                  x = x,
+                  standardize=TRUE,
+                  alpha = 1)
+
+lapply(data.train, function(x) max(is.na(x)))
+
+plot(lasso)
+bestlambda = lasso$lambda.min
+lasso.pred=predict(lasso,
+                   newx=x.test,
+                   s=bestlambda)  
+# Creating a table of the selected variables
+Selected.Variables = as.data.frame((coef(lasso, bestlambda))
+                                   [which(coef(lasso, bestlambda)!=0),])
+colnames(Selected.Variables) = "Value"
+kable(Selected.Variables, align = 'c', digits = 4, 
+      format = 'markdown', 
+      caption = "Selected Variables from LASSO")
+lasso.RMSE = RMSE(lasso.pred, y.test)
+## Bootstrapping for prediction interval 
+boots = 50
+preds = matrix(nrow = nrow(x.test), ncol = boots)
+for (i in 1:boots){
+  samp = sample(nrow(x.train), replace = TRUE)
+  x = x.train[samp,]
+  y = y.train[samp]
+  lasso = cv.glmnet(y = y, x = x,
+                       standardize=TRUE,
+                       alpha = 1)
+  preds[,i] = predict(lasso, x.test, s = "lambda.min")
+}
+Var.Pred = apply(preds, 1, var)
+SE = lasso.RMSE + sqrt(Var.Pred)
+lasso.predictions = data_frame(fit = as.vector(lasso.pred), actual = as.vector(y.test) , 
+                               lower = as.vector(lasso.pred - 1.96*SE),
+                               upper = as.vector(lasso.pred + 1.96*SE))
+ggplot(data = lasso.predictions %>% arrange(fit), aes(x = actual, y = fit)) + 
+        geom_point() + 
+        geom_errorbar(aes(ymin = lower, ymax = upper)) + 
+        geom_abline(intercept = 0, slope = 1)
+lasso.coverage = In.Interval(lower = lasso.predictions$lower, 
+                             upper = lasso.predictions$upper, 
+                             observed = lasso.predictions$actual)
+
+```
+
+### Build your first model
+
+In the first model predict the auction price `price` using the transformation `logprice` using at least 10 and up to 20 predictors and any interactions to build a model using linear regression.  You may use stepwise model selection to simplify the model using AIC and/or BIC.  For reference, we will fit the null model to initialize the leaderboard, but replace model1 with your recommended model.
+```{r GDP}
+library(R2jags)
+library(R2WinBUGS)
+GDP.model = function() {
+  for (i in 1:n.train) {
+    mu[i] <- inprod(X.train[i,], beta) + alpha
+    Y.train[i] ~ dnorm(mu[i], phi)
+  }
+  for (i in 1:n.test) {
+    mupred[i] <- inprod(X.test[i,], beta[1:p]) + alpha
+    #    Y.test[i] ~ dnorm(mupred[i], phi)  # drop or make sure that Y.test is NA
+  }
+  phi ~ dgamma(1.0E-6, 1.0E-6)
+  alpha ~ dnorm(0, 1.0E-10)
+  # GDP Prior on beta
+  #   beta_j | tau^2, phi N(0, tau^2_j/phi)
+  #   tau^2_j ~ Exp(lambda.beta/2)
+  #   lambda_j ~ Gamma(1,1)  
+  for (j in 1:p) {
+    prec.beta[j] <- sqrt(n.train - 1)*phi/tau[j]
+    tau[j] ~ dexp(lambda^2/2)
+    beta[j] ~ dnorm(0, prec.beta[j])
+  }
+  
+  
+  lambda ~ dgamma(1, 1)  # alpha = eta = 1 from paper
+  for (j in 1:p) {
+    beta.orig[j] <- beta[j]/scales[j]   # rescale for original units
+  }
+  beta.0[1] <- alpha[1] - inprod(beta.orig[1:p], Xbar)
+  sigma <- pow(phi, -.5)
+}
+```
+
+
+
+```{r}
+n = ncol(x.train)
+X.train = x.train
+X.test= x.test
+Y.train = y.train[,1]
+Y.test = y.test[,1]
+# Create an Input Vector for JagsBugs
+parameters = c("mupred","beta.0", "beta.orig","sigma","lambda")
+```
+
+
+```{r gdp}
+#GDP using JAGS
+scaled.X.train = scale(X.train)
+data = list(Y.train = Y.train, X.train=scaled.X.train, 
+            p=ncol(X.train))
+data$n.train = length(Y.train)
+data$n.test = length(Y.test)
+data$scales = attr(scaled.X.train, "scaled:scale")
+data$Xbar = attr(scaled.X.train, "scaled:center")
+data$X.test = scale(X.test, center=data$Xbar, scale=data$scales)
+disease.sim = jags(data, inits=NULL, parameters,
+                  model.file=GDP.model,  n.iter=1000)
+rmse.GDP = RMSE(disease.sim$BUGSoutput$mean$mupred, Y.test)
+mu = disease.sim$BUGSoutput$mean$mupred
+sd = sqrt(disease.sim$BUGSoutput$sd$mupred^2+rep(disease.sim$BUGSoutput$mean$sigma^2,100))
+gdp.interval = as.data.frame(cbind(y.test,mu,mu-1.96*sd,mu+1.96*sd))
+colnames(gdp.interval) = c("observed","fit","lwr","upr")
+ggplot(data = gdp.interval, aes(x = observed, y = fit)) + 
+        geom_point() + 
+        geom_errorbar(aes(ymin = lwr, ymax = upr)) + 
+        geom_abline(intercept = 0, slope = 1)
+gdp.coverage =In.Interval(lower = gdp.interval$lwr,
+                          upper = gdp.interval$upr, 
+                          observed = gdp.interval$observed)
+```
+
+
+
 ```{r model1, echo=TRUE}
-model1 = lm(logprice ~ 1, data=paintings_train)
+model1 = lm(logprice ~ ., data=paintings_train)
 
-#col_names<-["dealer","origin_author","origin_cat","school_pntg"]
-#df[] <- lapply(df[col_names] , factor)
-weitrain <- subset( Data, select = -c(d, b ) )
-paintings_train = paintings_train %>% mutate_if(is.character,funs(factor(.)));
-paintings_test = paintings_test %>% mutate_if(is.character,funs(factor(.)));
-#count
-
-train1=paintings_train %>% select(position,dealer,year,diff_origin,artistliving,Interm,type_intermed,Height_in,Width_in,Surface_Rect,Surface,nfigures,engraved,original,prevcoll,othartist,paired,figures,finished,lrgfont,landsALL,lands_sc,lands_elem,lands_figs,lands_ment,arch,mytho,peasant,othgenre,singlefig,portrait,still_life,discauth,history,allegory,pastorale,other,relig)
-modelt = tree(logprice ~position+dealer+year+origin_author+origin_cat+school_pntg+diff_origin+artistliving+authorstyle+winningbiddertype+endbuyer+Interm+type_intermed+Height_in+Width_in+Surface_Rect+Shape+Surface+mat+materialCat+nfigures+engraved+original+prevcoll+othartist+paired+figures+finished+lrgfont+landsALL+lands_sc+lands_elem+lands_figs+lands_ment+arch+mytho+peasant+othgenre+singlefig+portrait+still_life+discauth+history+allegory+pastorale+other+relig)
-model1 = lm(logprice ~, data=paintings_train)
-#aic.ols = step(model1, k = 2, trace = FALSE)
-cv.out = cv.glmnet(as.matrix(train1),as.matrix(paintings_train$logprice),alpha = 1)
-
+## Possible Models:
+# - Don't for get variable transformations! Consider Box Cox
+# - leaps with AIC and BIC
+# - Bayesian Model Averaging with different priors
 
 ```
 
@@ -119,8 +563,29 @@ save(predictions, file="predict-test.Rdata")
 Once you are satisfied with your model, provide a write up of your data analysis project in a new Rmd file/pdf file: `Part-I-Writeup.Rmd` by copying over salient parts of your R notebook. The written assignment consists of five parts:
 
 1. Introduction: Summary of problem and objectives (5 points)
+Data cleaning - 
+  - variables with a lot of factors, difficult to interpret
+  - missing values. We will work to impute
+
+Many variables -> we are working towards interpretability
+  - 3D plot to check for interactions
+  - pairs of variables
+
 
 2. Exploratory data analysis (10 points): must include three correctly labeled graphs and an explanation that highlight the most important features that went into your model building.
+  - log transform of surface
+  - box-tidwell for other variables
+  - 
+  
+  Transform variables initially
+  OLS - describe variable transformations
+  - stepwise - which variables get selected here when we include the interaction
+  
+  
+  BMA - find the highest probability model and best predictive model
+  
+  
+
 
 3. Development and assessment of an initial model (10 points)
 
@@ -208,7 +673,6 @@ Discuss performance based on leader board results and suggested refinements.
 
 * Variable selection/shrinkage: must use appropriate method and include an explanation
 
-
 * Residual: must include a residual plot and a discussion
 
 * discussion of how prediction intervals obtained 
@@ -229,6 +693,7 @@ Discuss performance based on leader board results and suggested refinements.
 ### Final Predictions Validation (20 points)
 Create predictions for the validation data from your final model using the dataframe `paintings_validation.Rdata` in your repo.  You may refit your final model to the combined training and test data.  Write predictions out to a file `prediction-validation.Rdata`
 *This should have the same format as the model output in Part I and II!*
+
 
 ## Final: Class Presentations and Peer Evaluation
 
