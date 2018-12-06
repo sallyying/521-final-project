@@ -127,16 +127,18 @@ data.train = paintings_train %>%
            Nfigures = ifelse(nfigures>1, 1, 0),
            Material = material %in% c("cuivre", "argent"),
            # Sale Features
-           position = min(1, position),
+           position = ifelse(position>1, 1, position),
            # Buyer Characteristics
            High_Roller = ifelse(winningbidder %in% 
                                   unlist(HighRollers), 1, 0),
            BigShotPainter = ifelse(author %in% 
                                   unlist(BigShotPainters), 1, 0),
-           endbuyer = factor(endbuyer),
+           endbuyer = factor(endbuyer), # replace empty values with "NA"
            dealer = factor(dealer),
            origin_author = factor(origin_author),
-           winningbiddertype = factor(winningbiddertype),
+           winningbiddertype = ifelse(is.na(winningbiddertype)|winningbiddertype == "",
+                                      "None",
+                                      winningbiddertype) %>% as.factor(),
            type_intermed = factor(ifelse(type_intermed=="", 
                                          "None",
                                          type_intermed)),
@@ -174,24 +176,43 @@ data.train$authorstyle[data.train$authorstyle %in% c("")] <- "missing"
 
 # Selecting all the relevant variables for final table
 data.train = data.train%>% 
-  select(logprice, Shape, log.Surface, Height_in, Width_in, year, 
+  select(logprice, Shape, log.Surface, Height_in, Width_in, year, artistliving,
+         authorstyle, diff_origin,  
           High_Roller, BigShotPainter, Nfigures, Material, position, endbuyer, 
           origin_author, winningbiddertype, type_intermed, dealer, authorstyle,
-          authorstandard, school_pntg, endbuyer, dealer, origin_author, winningbiddertype, 
-          engraved, original, prevcoll, othartist, paired, figures, 
+          authorstandard, school_pntg, dealer, origin_author, winningbiddertype, 
+          engraved, original, prevcoll, othartist, paired, figures, diff_origin,
           lrgfont, relig, landsALL, lands_sc, lands_elem, lands_figs, lands_ment, 
           arch, mytho, peasant, othgenre, singlefig, portrait, still_life, discauth, 
           history, allegory, pastorale, other) %>% na.omit()
+
+# train = paintings_train %>% select(sale, lot, position, dealer # lot was excluded (too many vars), sale was excluded, 
+# ,year, origin_author, origin_cat, school_pntg 
+# ,diff_origin, logprice 
+# ,subject, authorstandard, artistliving, authorstyle # Dropped subject. too specific
+# ,author, winningbidder, winningbiddertype, endbuyer # Changed author and winning bidder to top names 
+# ,Interm, type_intermed, # dropped Interm
+# Height_in, Width_in, Diam_in # Reduced to just Height/Width
+# ,Surface_Rect, Surface_Rnd, Shape ,Surface, # Reduced to 2
+# 
+# material, mat, materialCat #- reduced this to 1 variable
+# ,nfigures, engraved, original, prevcoll 
+# ,othartist, paired, figures, finished 
+# ,lrgfont, relig, landsALL, lands_sc 
+# ,lands_elem, lands_figs, lands_ment, arch ,
+# mytho, peasant, othgenre, singlefig, 
+# portrait, still_life, discauth, history, 
+# allegory, pastorale, other 
+# )
+
+
 ```
 
 
 * Model selection: must include a discussion
 ```{r BIC}
-<<<<<<< HEAD
 model1 = lm(logprice ~ ., data.train)
 
-=======
->>>>>>> 0ff04380849b48a4ba13ea181c1bcb13389e5a40
 ### BMA - selecting the highest probability model
 #AIC
 model2 = step(model1,direction="both",k=2, trace =FALSE)
@@ -208,7 +229,6 @@ kable(beta_bic_aic_ols)
 As is shown in the table, 22 variables are selected by AIC, while 14 variables are selected by BIC. BIC excluded all variables that are excluded by AIC, except for "Interm", which is excluded by AIC but included in BIC model.
 Under AIC model, variables including get significant result under 95% confidence level. 
 
-<<<<<<< HEAD
 ```{r BAS warning = FALSE, message = FALSE}
 library(BAS)
 paint.bas <- bas.lm(data=data.train, formula(model1), 
@@ -227,9 +247,6 @@ plot(paint.bas, which = 4)
 ```
 
 
-
-=======
->>>>>>> 0ff04380849b48a4ba13ea181c1bcb13389e5a40
 ```{r LASSO}
 RMSE = function(obs, pred){
   return( mean((obs-pred)^2))}
