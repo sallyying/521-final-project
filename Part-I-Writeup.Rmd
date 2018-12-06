@@ -262,7 +262,7 @@ summary(model3)
 kable(beta_bic_aic_ols)
 ```
 As is shown in the table, 22 variables are selected by AIC, while 14 variables are selected by BIC. BIC excluded all variables that are excluded by AIC, except for "Interm", which is excluded by AIC but included in BIC model.
-Under AIC model, variables including get significant result under 95% confidence level. 
+
 
 ```{r BAS warning = FALSE, message = FALSE}
 library(BAS)
