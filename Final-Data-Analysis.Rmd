@@ -234,7 +234,7 @@ data.train$authorstyle[data.train$authorstyle %in% c("")] <- "missing"
 # data.train = data.train%>% select(logprice, Shape, log.Surface, Height_in, Width_in, year, High_Roller, Nfigures, Material, position, endbuyer, origin_author, winningbiddertype, type_intermed, dealer, authorstyle, authorstandard, school_pntg, endbuyer, dealer, origin_author, winningbiddertype, type_intermed) %>% na.omit()
 
 # New version to explore painting content
-data.train = data.train%>% select(logprice, Shape, log.Surface, Height_in, Width_in, year, High_Roller, Nfigures, Material, position, endbuyer, origin_author, winningbiddertype, type_intermed, dealer, authorstyle, authorstandard, school_pntg, endbuyer, dealer, origin_author, winningbiddertype, type_intermed, engraved, original, prevcoll, othartist, paired, figures, lrgfont, relig, landsALL, lands_sc, lands_elem, lands_figs, lands_ment, arch, mytho, peasant, othgenre, singlefig, portrait, still_life, discauth, history, allegory, pastorale, other) %>% na.omit()
+data.train = data.train%>% select(logprice, Shape, log.Surface, Height_in, Width_in, year, High_Roller, Nfigures, Material, position, endbuyer, origin_author, winningbiddertype, type_intermed, dealer, authorstyle, authorstandard, artistliving, school_pntg, endbuyer, dealer, origin_author, winningbiddertype, type_intermed, engraved, original, prevcoll, othartist, paired, figures, lrgfont, relig, landsALL, lands_sc, lands_elem, lands_figs, lands_ment, arch, mytho, peasant, othgenre, singlefig, portrait, still_life, discauth, history, allegory, pastorale, other) %>% na.omit()
 
 
 df.matrix = as.data.frame(data.train)
@@ -281,6 +281,72 @@ Selected.Variables = as.data.frame((coef(lasso, bestlambda))
 data%>% filter(!is.na(Diam_in))
 
 ```
+```{r OLS,echo=False, warning=FALSE}
+attach(data.train)
+model1 = lm(logprice ~ ., data.train)
+summary(model1)
+
+par(mfrow=c(2,2))
+plot(model1)
+#Dataframe for Table
+model1coef= data.frame(
+  names(model1$coefficients),
+  model1$coefficients,
+  confint(model1)
+) %>%
+  group_by(model1.coefficients) %>%
+  arrange(desc(model1.coefficients))
+colnames(model1coef) = c("predictors coefficients", "fit", "2.5\\%", "97.5\\%")
+#draw the table
+library(dplyr)
+library(knitr)
+library(kableExtra)
+model1coef %>%
+  knitr::kable(caption = "Table of OLS Coefficients and Their Confidence Interval", 
+        escape = FALSE) %>%
+  kable_styling(latex_options = 'hold_position')
+
+##boxcox transformation may not be realistc for factors
+```
+
+From the OLS, we get 11 variables with coefficients estimasted as NA, including "position", four levels under "winningbiddertype", all levels under "type_intermed", "Interm", and binary variable "lands_ment". Given this result, we may consider both "interm" and "type_intermed" are not useful in predictions.
+
+As we can see from the OLS plot, the assumption of constant variance is generally satisfied, although it is in slightly U-shape. The normal distribution assumption is also well satisfied. Assumptions of OLS are satisfied in general.
+
+Point 713, 13, 81 seems to be outliers. There are no points with high leverage. And it seems there are no highly influential points.
+
+
+#more writeups from Brian
+#why we would have NA coefficients for other variables?
+
+```{r}
+#linear models with interactions
+attach(data.train)
+model1.2 = lm(logprice~(.)^2, data =data.train)
+#Summary of Linear Model with Interactions
+summary(model1.2)
+variable.names(model1.2)
+```
+#not quite sure what to get from the interaction model
+We can learn from the interaction model about some interactions that are interpretable and significant at the same time, including "log.Surface:Height_in", "log.Surface:Width_in",     
+and "Shape:log.Surface". We may add them to our model.
+
+
+```{r}
+#AIC
+model2 = step(model1,direction="both",k=2, trace =FALSE)
+summary(model2)
+#BIC
+model3 = step(model1,direction="both",k=log(nrow(data.train)), trace=FALSE)
+summary(model3)
+#plot coefficient comparison model btw aic, bic, and ols
+ beta_bic_aic_ols = data_frame(name=names(coef(model1)),OLS=coef(model1))%>%
+  left_join(data_frame(name=names(coef(model2)),AIC=coef(model2)))%>%
+  left_join(data_frame(name=names(coef(model3)),BIC=coef(model3)))
+kable(beta_bic_aic_ols)
+```
+As is shown in the table, 22 variables are selected by AIC, while 14 variables are selected by BIC. BIC excluded all variables that are excluded by AIC, except for "Interm", which is excluded by AIC but included in BIC model.
+Under AIC model, variables including get significant result under 95% confidence level. 
 
 ```{r LASSO}
 library(glmnet)
