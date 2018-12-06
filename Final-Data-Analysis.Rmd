@@ -41,7 +41,6 @@ To get started read in the training data:
 load("paintings_train.Rdata")
 load("paintings_test.Rdata")
 set.seed(9)
-
 ```
 
 The Code Book is in the file `paris_paintings.md` provides more information about the data.
@@ -111,7 +110,8 @@ plot.df = data%>%select(logprice, Surface, Surface_Rect, Surface_Rnd, Shape, Dia
 
 ggplot(data= plot.df, aes(x = Width_in, y = Height_in, color = logprice)) + geom_point() + geom_abline(intercept = 0, slope = 1)
 
-ggplot(data= plot.df, aes(x = hw_ratio, y = log(Surface), size = logprice, color = logprice)) + geom_point() + xlim(1,3)
+plot.df = data%>%select(logprice, Surface, Surface_Rect, Surface_Rnd, Shape, Diam_in, Height_in, Width_in, material, mat) %>% mutate(hw_ratio = Height_in/Width_in) %>% arrange(desc(logprice))
+ggplot(data= plot.df, aes(x = log(hw_ratio), y = logprice, color = log(Surface), size = 3)) + geom_point() 
 
 # Note that these effects are just marginal, there may be some other variables that are related to this
 
@@ -291,6 +291,13 @@ lasso = cv.glmnet(y = y,
                   standardize=TRUE,
                   alpha = 1)
 
+lm = cv.glmnet(y = y, x = x)
+
+k = 10
+fold = rep(sample(1:k), nrow(data.train))
+fold = sample(1:k, nrow(data.train),  replace = TRUE)
+table(fold)
+
 lapply(data.train, function(x) max(is.na(x)))
 
 plot(lasso)
@@ -447,8 +454,8 @@ Many variables -> we are working towards interpretability
 
 2. Exploratory data analysis (10 points): must include three correctly labeled graphs and an explanation that highlight the most important features that went into your model building.
   - log transform of surface
+  - Height and width
   - box-tidwell for other variables
-  - 
   
   Transform variables initially
   OLS - describe variable transformations
