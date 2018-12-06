@@ -72,8 +72,15 @@ plot2 = ggplot (data = paintings_train,
                     shape = school_pntg, color = Shape))+
                 geom_point() + ggtitle("Log Surface and Log Price") 
                 
+plot.df = paintings_train %>% mutate(lot = str_replace_all(lot, "lot", "")%>% as.numeric())
+plot3 = ggplot (data = plot.df, 
+                aes(x = lot, y = logprice, color = factor(dealer)))+
+                geom_point() + ggtitle("Lot and Log Price")
+plot4 = ggplot (data = plot.df, 
+                aes(x = log(lot), y = logprice, color = factor(dealer)))+
+                geom_point() + ggtitle("Log Lot and Log Price")
 
-gridExtra::grid.arrange(plot1, plot2, nrow = 1)
+gridExtra::grid.arrange(plot1, plot2, plot3, plot4, nrow = 2)
 ```
 
 We can see from this that 
@@ -94,6 +101,15 @@ From the plot, we can see that "authorstandard" and "school_pntg" may have impac
 Looking at the plots for binary (integer) predictors, we are looking to identify whether a value of 1 or 0 for a variable changes how it is distributed across logprice. But the plots don't look obvious enough to tell the relationships.
 
 
+## Include chart by year and material type
+```{r}
+ggplot (data = paintings_train, 
+                aes(x = year, y = logprice, color = factor(dealer)))+
+                geom_point() + ggtitle("Artist Features and Log Price") 
+
+
+
+```
 
 ##3. Development and assessment of an initial model (10 points)
 
@@ -115,7 +131,6 @@ BigShotPainters = data %>% group_by(author) %>%
               select(author) %>%
               head(5) %>% as.list
 
-
 ## Train data
 data.train = paintings_train %>% 
       mutate( # Painting physical features
@@ -133,8 +148,11 @@ data.train = paintings_train %>%
                                   unlist(HighRollers), 1, 0),
            BigShotPainter = ifelse(author %in% 
                                   unlist(BigShotPainters), 1, 0),
-           endbuyer = factor(endbuyer), # replace empty values with "NA"
+           endbuyer = ifelse(endbuyer=="U"|winningbiddertype == "",
+                                      "None",
+                                      winningbiddertype) %>% as.factor(), 
            dealer = factor(dealer),
+           lot = str_replace_all(lot, "lot", "")%>% as.numeric(),
            origin_author = factor(origin_author),
            winningbiddertype = ifelse(is.na(winningbiddertype)|winningbiddertype == "",
                                       "None",
@@ -147,6 +165,8 @@ data.train = paintings_train %>%
            artistliving=as.factor(artistliving),
            authorstyle=as.factor(authorstyle)
 ) 
+
+sum(is.na((data$lot %>% str_replace_all(., "lot", "") %>% as.numeric())))
 
 #variable description tables
 table=data.train %>% group_by(school_pntg) %>% 
@@ -177,7 +197,7 @@ data.train$authorstyle[data.train$authorstyle %in% c("")] <- "missing"
 # Selecting all the relevant variables for final table
 data.train = data.train%>% 
   select(logprice, Shape, log.Surface, Height_in, Width_in, year, artistliving,
-         authorstyle, diff_origin,  
+         authorstyle, diff_origin, lot,
           High_Roller, BigShotPainter, Nfigures, Material, position, endbuyer, 
           origin_author, winningbiddertype, type_intermed, dealer, authorstyle,
           authorstandard, school_pntg, dealer, origin_author, winningbiddertype, 
@@ -205,19 +225,34 @@ data.train = data.train%>%
 # allegory, pastorale, other 
 # )
 
+# Are these last categories super sparse?
+
+test = data.train %>% select( prevcoll
+,othartist, paired, figures
+,lrgfont, relig, landsALL, lands_sc
+,lands_elem, lands_figs, lands_ment, arch ,
+mytho, peasant, othgenre, singlefig,
+portrait, still_life, discauth, history,
+allegory, pastorale, other
+)
+
+for (i in 1:ncol(test)) print(paste0(colnames(test)[i], ":", round(mean(test[,i], na.rm = TRUE), 2)))
+
 
 ```
 
 
 * Model selection: must include a discussion
 ```{r BIC}
-model1 = lm(logprice ~ ., data.train)
+model1 = lm(logprice ~ . +log(lot) + lot:dealer + log.Surface:Shape + type_intermed:endbuyer + dealer:year -winningbiddertype, data.train)
 
 ### BMA - selecting the highest probability model
 #AIC
+#25 variables
 model2 = step(model1,direction="both",k=2, trace =FALSE)
 summary(model2)
 #BIC
+# 16 variables
 model3 = step(model1,direction="both",k=log(nrow(data.train)), trace=FALSE)
 summary(model3)
 #plot coefficient comparison model btw aic, bic, and ols
@@ -231,11 +266,25 @@ Under AIC model, variables including get significant result under 95% confidence
 
 ```{r BAS warning = FALSE, message = FALSE}
 library(BAS)
-paint.bas <- bas.lm(data=data.train, formula(model1), 
-                 prior = "g-prior", 
-                 alpha = nrow(data.train),
-                 modelprior = uniform(),
-                 method = "MCMC")
+basg=bas.lm(logprice ~ . + log(lot) + lot:dealer + log.Surface:Shape + type_intermed:endbuyer + dealer:year -winningbiddertype -authorstyle -school_pntg
+, data=data.train,
+prior="g-prior", a=nrow(data.train), modelprior=uniform(),
+method="MCMC", MCMC.iterations = 500000, thin = 20)
+plot(basg)
+diagnostics(basg, type="pip")
+
+#pred=predict(baslm, newdata = df, estimator='HPM')
+basz = bas.lm(logprice ~ .+ log(lot) + lot:dealer + log.Surface:Shape + type_intermed:endbuyer + dealer:year -winningbiddertype -authorstyle -school_pntg, 
+               data=data.train,
+               prior="JZS", a=nrow(data.train), modelprior=uniform(),
+               method="MCMC", MCMC.iterations = 500000, thin = 20, 
+               initprobs="marg-eplogp")
+plot(basz)
+diagnostics(basz, type="pip")
+image(basg, rotate = F)
+image(basz, rotate = F)
+
+
 
 bas.summary <- summary(paint.bas)
 kable(bas.summary, align = "c", digits =3 )
@@ -249,7 +298,7 @@ plot(paint.bas, which = 4)
 
 ```{r LASSO}
 RMSE = function(obs, pred){
-  return( mean((obs-pred)^2))}
+  return( mean(sqrt((obs-pred)^2)))}
 
 In.Interval = function(upper, lower, observed){
   mean(observed>=lower && observed<=upper)
