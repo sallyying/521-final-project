@@ -232,7 +232,7 @@ data.train = paintings_train %>%
            Nfigures = ifelse(nfigures>1, 1, 0),
            Material = material %in% c("cuivre", "argent"),
            # Sale Features
-           position = min(1, position),
+           position = ifelse(position>1, 1,position),
            # Buyer Characteristics
            High_Roller = ifelse(winningbidder %in% 
                                   unlist(HighRollers), 1, 0),
@@ -280,11 +280,11 @@ df.matrix = as.data.frame(data.train)
 library(randomForest)
 #randomForest(data.train[,1]~ data.train%>% select(-logprice))
 
-test.forest = randomForest(logprice~., data = data.train)
-varImpPlot(test.forest)
+#test.forest = randomForest(logprice~., data = data.train)
+#varImpPlot(test.forest)
 
-randomForest()
-as.data.frame(data.train)[,-1]
+#randomForest()
+#as.data.frame(data.train)[,-1]
 str(data.train)
 as_data_frame(data.train[,-1])
 
@@ -388,25 +388,25 @@ Under AIC model, variables including get significant result under 95% confidence
 
 ```{r}
 #BMA model
-#why position only have one value????
 library(BAS)
-basg=bas.lm(logprice ~ .-position
--authorstyle
+basg=bas.lm(logprice ~ .-authorstyle
 -school_pntg
 , data=data.train,
 prior="g-prior", a=nrow(data.train), modelprior=uniform(),
-method="MCMC", MCMC.iterations = 200000, thin = 20)
+method="MCMC", MCMC.iterations = 500000, thin = 20)
 plot(basg)
 diagnostics(basg, type="pip")
 #pred=predict(baslm, newdata = df, estimator='HPM')
-basz = bas.lm(logprice ~ .-position
--authorstyle
+
+basz = bas.lm(logprice ~ .-authorstyle
 -school_pntg, data=data.train,
                prior="JZS", a=nrow(data.train), modelprior=uniform(),
-               method="MCMC", MCMC.iterations = 200000, thin = 20, 
+               method="MCMC", MCMC.iterations = 500000, thin = 20, 
                initprobs="marg-eplogp")
 plot(basz)
 diagnostics(basz, type="pip")
+image(basg, rotate = F)
+image(basz, rotate = F)
 ```
 
 ```{r LASSO}
