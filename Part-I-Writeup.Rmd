@@ -187,6 +187,8 @@ data.train = data.train%>%
 
 * Model selection: must include a discussion
 ```{r BIC}
+model1 = lm(logprice ~ ., data.train)
+
 ### BMA - selecting the highest probability model
 #AIC
 model2 = step(model1,direction="both",k=2, trace =FALSE)
@@ -202,6 +204,25 @@ kable(beta_bic_aic_ols)
 ```
 As is shown in the table, 22 variables are selected by AIC, while 14 variables are selected by BIC. BIC excluded all variables that are excluded by AIC, except for "Interm", which is excluded by AIC but included in BIC model.
 Under AIC model, variables including get significant result under 95% confidence level. 
+
+```{r BAS warning = FALSE, message = FALSE}
+library(BAS)
+paint.bas <- bas.lm(data=data.train, formula(model1), 
+                 prior = "g-prior", 
+                 alpha = nrow(data.train),
+                 modelprior = uniform(),
+                 method = "MCMC")
+
+bas.summary <- summary(paint.bas)
+kable(bas.summary, align = "c", digits =3 )
+diagnostics(paint.bas, type = "pip")
+
+
+image(paint.bas)
+plot(paint.bas, which = 4)
+```
+
+
 
 ```{r LASSO}
 RMSE = function(obs, pred){
