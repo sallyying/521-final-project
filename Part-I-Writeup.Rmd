@@ -96,7 +96,7 @@ gridExtra::grid.arrange(plot1, plot2, plot3, plot4, plot5, plot6, nrow = 3)
 
 We can see from this that 
 1) log transform is definitely necessary. When it's transformed we start to see a more linear trend. 
-2) We also see that some of the dealers 
+2) We also see that some of the dealer of type R has a large range of price and lot than other types.
 
 ```{r Few Tables}
 ggplot (data = paintings_train, 
