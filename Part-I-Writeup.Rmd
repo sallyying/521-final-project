@@ -121,6 +121,9 @@ ggplot (data = paintings_train,
 
 
 ```
+Our team finds that type R delaler almost dominates the paintings before year 1776. Type P deal becomes more frequently active from year 1775.
+
+
 
 ##3. Development and assessment of an initial model (10 points)
 
@@ -227,7 +230,7 @@ One of the biggest challenges of cleaning this data was determining how to retai
 
 * Model selection: must include a discussion
 ```{r BIC}
-model1 = lm(logprice ~ . +log(lot) + lot:dealer + log.Surface:Shape + type_intermed:endbuyer + dealer:year -winningbiddertype, data.train)
+model1 = lm(logprice ~ . +log(lot) + lot:dealer + log.Surface:Shape + type_intermed:endbuyer + dealer:year, data.train)
 
 ### BMA - selecting the highest probability model
 #AIC
