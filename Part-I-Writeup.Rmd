@@ -224,7 +224,6 @@ One of the biggest challenges of cleaning this data was determining how to retai
 
 
 * Model selection: must include a discussion
-
 ```{r BIC}
 model1 = lm(logprice ~ . +log(lot) + lot:dealer + log.Surface:Shape + type_intermed:endbuyer + dealer:year -winningbiddertype, data.train)
 
@@ -308,14 +307,6 @@ ggplot(data = Plot.df%>%filter(abs(Estimate)>.1),
 
 image(basg)
 
-```{r rmse}
-#in sample rmse
-rmse_ols=RMSE(exp(predict(model1)),exp(data.train$logprice))
-rmse_aic=RMSE(exp(predict(model2)),exp(data.train$logprice))
-rmse_bic=RMSE(exp(predict(model3)),exp(data.train$logprice))
-rmse = data_frame(model=c("ols","aic","bic"),rmse=c(rmse_ols,rmse_aic,rmse_bic))
-kable(rmse)
-```
 
 ```
 
@@ -442,17 +433,29 @@ data.test = data.test%>% na.omit()
 BMA.prediction = predict(basg, newdata = data.test, estimator = "BPM",
                          se.fit = TRUE, interval = "prediction")
 
-predictions = matrix(nrow = nrow(paintings_test), ncol = 3)
-predictions[-missing.data,] = cbind(confint(BMA.prediction)[,3], confint(BMA.prediction)[,1], confint(BMA.prediction)[,2])
-predictions[missing.data,] = colMeans(cbind(confint(BMA.prediction)[,3], confint(BMA.prediction)[,1], confint(BMA.prediction)[,2]))
-predicitons = na.omit(predictions)
+preds = matrix(nrow = nrow(paintings_test), ncol = 3)
+preds[-missing.data,] = cbind(confint(BMA.prediction)[,3], 
+                                    confint(BMA.prediction)[,1], 
+                                    confint(BMA.prediction)[,2])
+
+preds[missing.data,] = colMeans(cbind(confint(BMA.prediction)[,3],
+                                            confint(BMA.prediction)[,1], 
+                                            confint(BMA.prediction)[,2]))
+
+predictions = data.frame(fit = exp(preds[,1]), lwr = exp(preds[,2]), upr = exp(preds[,3]))
 
 save(predictions, file="predict-test.Rdata")
 
-dim(data.train)
-
 ```
 
+```{r}
+ # change model1 or update as needed
+ # predictions = as.data.frame(
+ #   exp(predict(model1, newdata=paintings_test,
+ #               interval = "pred")))
+ # save(predictions, file="predict-test.Rdata")
+
+```
 
 You will be able to see your scores on the score board.  They will be initialized by a prediction based on the mean in the training data.
 
