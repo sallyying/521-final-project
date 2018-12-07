@@ -24,14 +24,11 @@ set.seed(9)
 
 ### Part I Write up *Last day to submit is Dec 7 by 5; accepted until Dec 6 (5 points off if late)*
 
-Once you are satisfied with your model, provide a write up of your data analysis project in a new Rmd file/pdf file: `Part-I-Writeup.Rmd` by copying over salient parts of your R notebook. The written assignment consists of five parts:
-
 ##1. Introduction: Summary of problem and objectives (5 points)
 
-INTRO PARAGRAPH
-The art historian would like to know what factors drove prices of painting, which paintings might be overvalued and which are undervalued.   It is up to you to decide what methods you want to use (frequentist or Bayesian or a combination) to answer these questions, and implement them to help to identify undervalued and overvalued paintings, as well as which features and possible interactions are at play.
+We are tasked with identifying the relevant variables for predicting the cost of a painting for a few years in teh 18th century. In addition to gaining insight on these variables, we are also interested in generating a prediction to identify paintings that may have been overvalued or undervalued given a set of predictors. 
 
-Initial inspection of the data revealed that it contained 59 variables: 2 outcomes (price and logprice) and 57 predictors. These predictors fit into several relatively well-defined categories: \
+Initial inspection of the data revealed that it contained 59 variables: 2 outcomes (price and logprice) and 56 predictors. These predictors fit into several relatively well-defined categories: \
 - Artist Characteristics \
 - Auction Characteristics \
 - Painting Content and Physical Features  \
@@ -42,24 +39,8 @@ Another major challenge is the redundancy of some variables. For instance, the v
 
 
 ##2. Exploratory data analysis (10 points): must include three correctly labeled graphs and an explanation that highlight the most important features that went into your model building.
-  - log transform of surface
-  - box-tidwell for other variables
-  
-  Transform variables initially
-  OLS - describe variable transformations
-  - stepwise - which variables get selected here when we include the interaction
-  
-  Data cleaning - 
-  - variables with a lot of factors, difficult to interpret
-  - missing values. We will work to impute
-  
-Many variables -> we are working towards interpretability
-  - 3D plot to check for interactions
-  - pairs of variables
-  
-  
-  BMA - find the highest probability model and best predictive model
-  
+
+### Physical Features of Painting
 ```{r Physical Features, message=FALSE}
 # Shape and Surface
 plot1 = ggplot(data = paintings_train, 
@@ -92,16 +73,17 @@ gridExtra::grid.arrange(plot1, plot2, plot3, plot4, plot5, plot6, nrow = 3)
 
 ```
 
-We can see from this that 
-1) log transform is definitely necessary. When it's transformed we start to see a more linear trend. 
-2) We also see that some of the dealers 
+The plots above show several variables that become increasingly sparse as the values increase. In other words, their distributions are very positively skewed making them good candidates for a log transformation. The plots on the left show the relationship between the untransformed variables on the x axis and log price on the y axis and the plots on the right show the relationship of the log transformed values. Clearly, in all cases, the log transformation makes these plots more readable, though it seems that the only clear linear relationship is with log surface. For log lot, there does not appear to be a discernable relationship with price. With NFigures, we notice there are a lot of . Because these observations could significantly impact the intercept of this relationship, we determined that it would be best to simply transform this into a dichotomous variable with 0 signifiying 0 or 1 figures and 1 signifying more than 1 figures. 
+
+We also see from these plots that the dealer, regardless of the variable on the x axis, seems to stratify the price of the painting fairly neatly. Additionally, we can see from the plot with surface that nearly all the paintings are squares or rectangles. 
 
 ```{r Few Tables}
 ggplot (data = paintings_train, 
                 aes(x = school_pntg, y = logprice, color = factor(artistliving)))+
-                geom_jitter() + ggtitle("Artist Features and Log Price") 
+                geom_jitter() + ggtitle("Artist Features and Log Price")
+
 ```
-Artist information include 6 variables, "school_pntg", "subject",     "authorstandard", "artistliving", "authorstyle", and "author". "subject" is text description of the painting, which is very hard to quantify or act as factors, so we decide to delete it. "authorstandard" is the standard version of the "author". "authorstandard" has 519 unique values, while "author" has 831 unique values. So we think using "authorstandard" instead of "author" would be a better choice. 
+Artist information includes 6 variables, "school_pntg", "subject",     "authorstandard", "artistliving", "authorstyle", and "author". "subject" is text description of the painting, which is very hard to quantify or act as factors, so we decide to delete it. "authorstandard" is the standard version of the "author". "authorstandard" has 519 unique values, while "author" has 831 unique values. So we think using "authorstandard" instead of "author" would be a better choice. 
 
 In summary, we would use four variables under this category, "school_pntg", "artistliving", "authorstandard", and "authorstyle". And we would use all of them as factors. For "school_pntg", we have 4 levels by combining "A|G|S|X" into one category. We combine those four levels because their data sizes are very small. For "artistliving", it is a binary variable with 0/1. For "authorstandard", we pick authors, whose corresponding mean value of logprices is at least 10% bigger than the mean value of all logprices in the sample data, or at least 10% lower than that, as 1. The rest authors are set as 0. For "authorstyle", we have 5 levels by combining "m|g|o|al|co|pa" since their sample sizes are very small.
 
@@ -111,12 +93,35 @@ Looking at the plots for binary (integer) predictors, we are looking to identify
 
 
 ## Include chart by year and material type
-```{r}
-ggplot (data = paintings_train, 
-                aes(x = year, y = logprice, color = factor(dealer)))+
-                geom_point() + ggtitle("Artist Features and Log Price") 
+```{r Reducing the Names}
+HighRollers = paintings_train %>% group_by(winningbidder) %>% 
+              summarize(count = n(), avg.spend = mean(logprice)/mean(paintings_train$logprice)) %>% 
+              filter(count>10) %>% arrange(desc(avg.spend)) %>% head(10) %>%
+              select(winningbidder) %>%
+              head(10) %>% as.list
 
+# Top 5 Pricey Painters
+BigShotPainters = paintings_train %>% group_by(author) %>% 
+              summarize(count = n(), avg.haul = mean(logprice)/mean(paintings_train$logprice)) %>% 
+              filter(count>10) %>% arrange(desc(avg.haul)) %>%
+              select(author) %>%
+              head(5) %>% as.list
+plot.df = paintings_train %>% 
+      mutate(
+           High_Roller = ifelse(winningbidder %in% 
+                                  unlist(HighRollers), 1, 0),
+           BigShotPainter = ifelse(author %in% 
+                                  unlist(BigShotPainters), 1, 0)
+      ) 
 
+plot1 = ggplot(data = plot.df, 
+               aes(x = High_Roller, y = logprice, color = factor(High_Roller)))+
+                geom_boxplot() + ggtitle("High Rollers and Log Price")
+
+plot2 = ggplot(data = plot.df, 
+                aes(x = BigShotPainter, y = logprice, color = factor(BigShotPainter)))+
+                geom_boxplot() + ggtitle("Big-shot Painters and Log Price") 
+gridExtra::grid.arrange(plot1, plot2, nrow = 1)
 
 ```
 
@@ -222,50 +227,7 @@ data.train = data.train%>%
 One of the biggest challenges of cleaning this data was determining how to retain relevant information while ensuring there were no groups of factors that were too sparsely populated. In that case, the estimates for those sparsely populated variables could lead to serious problems with model builiding and could adversely impact the model's ability to generalize. Some of these variables that had to be manipulated included material, shape, type of intermediary and winning bidder. There were also several variables that we changed to dichotomous because the factors were too sparse and the impact of the additional categories were approximately the same as others. 
 
 
-
-* Model selection: must include a discussion
-```{r BIC}
-model1 = lm(logprice ~ . +log(lot) + lot:dealer + log.Surface:Shape + type_intermed:endbuyer + dealer:year -winningbiddertype, data.train)
-
-### BMA - selecting the highest probability model
-#AIC
-#25 variables
-model2 = step(model1,direction="both",k=2, trace =FALSE)
-summary(model2)
-#BIC
-# 16 variables
-set.seed(9)
-model3 = step(model1,direction="both",k=log(nrow(data.train)), trace=FALSE)
-summary(model3)
-#plot coefficient comparison model btw aic, bic, and ols
- beta_bic_aic_ols = data_frame(name=names(coef(model1)),OLS=coef(model1))%>%
-  left_join(data_frame(name=names(coef(model2)),AIC=coef(model2)))%>%
-  left_join(data_frame(name=names(coef(model3)),BIC=coef(model3)))
-kable(beta_bic_aic_ols)
-summary(model1)
-
-
-```
-
-As is shown in the table, 29 variables are selected by AIC, while 17 variables are selected by BIC. BIC excluded all variables that are excluded by AIC.
-
-```{r AIC/BIC}
-model1 = lm(logprice ~ .  + log.Surface:Shape + type_intermed:endbuyer  -winningbiddertype -authorstyle , data.train)
-
-# model1.inter = model1
-### BMA - selecting the highest probability model
-#AIC
-#25 variables
-model2 = step(model1,direction="both",k=2, trace =FALSE)
-summary(model2)
-#BIC
-# 16 variables
-model3 = step(model1,direction="both",k=log(nrow(data.train)), trace=FALSE)
-summary(model3)
-```
-
-
-```{r BAS warning = FALSE, message = FALSE}
+```{r BAS, warning = FALSE, message = FALSE}
 library(BAS)
 set.seed(9)
 basg=bas.lm(logprice ~ .  + log.Surface:Shape 
@@ -311,12 +273,6 @@ image(basg)
 ```
 
 * Residual: must include residual plot(s) and a discussion.  
-```{r}
-
-
-```
-
-
 * Variables: must include table of coefficients and CI
 ```{r Table of Variables and CI}
 
@@ -426,23 +382,34 @@ data.test = data.test%>%
           engraved, original, prevcoll, othartist, paired, figures, diff_origin,
           lrgfont, relig, landsALL, lands_sc, lands_elem, lands_figs, lands_ment, 
           arch, mytho, peasant, othgenre, singlefig, portrait, still_life, discauth, 
-          history, allegory, pastorale, other) %>% mutate(logprice = 0) #%>% na.omit()
-missing.data = which(apply(data.test, 1, function(x) max(is.na(x))==1))
-data.test = data.test%>% na.omit()
+          history, allegory, pastorale, other) %>% mutate(logprice = 0)
+library(mice)
 
-BMA.prediction = predict(basg, newdata = data.test, estimator = "BPM",
+imputed_Data <- mice(data.test, m=5, maxit = 50, method = 'pmm', seed = 9)
+
+dim(na.omit(imputed_Data))
+completeData <- complete(imputed_Data,2)
+completeData[which(is.na(data.test$log.Surface)),]$log.Surface = 
+  mean(na.omit(data.test)$log.Surface, na.rm=TRUE)
+
+# missing.data = which(apply(data.test, 1, function(x) max(is.na(x))==1))
+# data.test = data.test%>% na.omit()
+
+BMA.prediction = predict(basg, newdata = completeData, estimator = "BPM",
                          se.fit = TRUE, interval = "prediction")
 
 preds = matrix(nrow = nrow(paintings_test), ncol = 3)
-preds[-missing.data,] = cbind(confint(BMA.prediction)[,3], 
-                                    confint(BMA.prediction)[,1], 
-                                    confint(BMA.prediction)[,2])
-
-preds[missing.data,] = colMeans(cbind(confint(BMA.prediction)[,3],
-                                            confint(BMA.prediction)[,1], 
-                                            confint(BMA.prediction)[,2]))
+# preds[-missing.data,] = cbind(confint(BMA.prediction)[,3], 
+#                                     confint(BMA.prediction)[,1], 
+#                                     confint(BMA.prediction)[,2])
+# 
+# preds[missing.data,] = colMeans(cbind(confint(BMA.prediction)[,3],
+#                                             confint(BMA.prediction)[,1], 
+#                                             confint(BMA.prediction)[,2]))
+preds = cbind(confint(BMA.prediction)[,3], confint(BMA.prediction)[,1], confint(BMA.prediction)[,2])
 
 predictions = data.frame(fit = exp(preds[,1]), lwr = exp(preds[,2]), upr = exp(preds[,3]))
+
 
 save(predictions, file="predict-test.Rdata")
 
