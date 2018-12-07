@@ -254,21 +254,6 @@ summary(model1)
 
 As is shown in the table, 29 variables are selected by AIC, while 17 variables are selected by BIC. BIC excluded all variables that are excluded by AIC.
 
-```{r AIC/BIC}
-model1 = lm(logprice ~ .  + log.Surface:Shape + type_intermed:endbuyer  -winningbiddertype -authorstyle , data.train)
-
-# model1.inter = model1
-### BMA - selecting the highest probability model
-#AIC
-#25 variables
-model2 = step(model1,direction="both",k=2, trace =FALSE)
-summary(model2)
-#BIC
-# 16 variables
-model3 = step(model1,direction="both",k=log(nrow(data.train)), trace=FALSE)
-summary(model3)
-```
-
 
 ```{r BAS warning = FALSE, message = FALSE}
 library(BAS)
