@@ -303,14 +303,15 @@ image(basg)
 * Residual: must include residual plot(s) and a discussion.  
 ```{r}
 
-
+plot(basg, ask = F,which=1)
 ```
+From the residual plot above, we can see that our the BMA model fits the data well. W have a constant residual with mean zero for different fitted prices. Our only concern is that the variance of the residuals seem to differ with different fitted values.
 
 
 * Variables: must include table of coefficients and CI
 ```{r Table of Variables and CI}
-
-
+## Plotting Confidence interval
+confint(coef(basg, estimator = "HPM"))
 ```
 
 
