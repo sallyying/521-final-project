@@ -80,7 +80,16 @@ plot4 = ggplot (data = plot.df,
                 aes(x = log(lot), y = logprice, color = factor(dealer)))+
                 geom_point() + ggtitle("Log Lot and Log Price")
 
-gridExtra::grid.arrange(plot1, plot2, plot3, plot4, nrow = 2)
+plot5 = ggplot (data = paintings_train, 
+                aes(x = nfigures, y = logprice, color = factor(dealer)))+
+                geom_point() + ggtitle("NFigures and Log Price")
+plot6 = ggplot (data = plot.df, 
+                aes(x = log(nfigures+1), y = logprice, color = factor(dealer)))+
+                geom_point() + ggtitle("Log NFigures and Log Price")
+
+gridExtra::grid.arrange(plot1, plot2, plot3, plot4, plot5, plot6, nrow = 3)
+
+
 ```
 
 We can see from this that 
@@ -141,7 +150,6 @@ data.train = paintings_train %>%
            year = factor(year),
            Nfigures = ifelse(nfigures>1, 1, 0),
            Material = material %in% c("cuivre", "argent"),
-           # Sale Features
            position = ifelse(position>1, 1, position),
            # Buyer Characteristics
            High_Roller = ifelse(winningbidder %in% 
@@ -149,8 +157,9 @@ data.train = paintings_train %>%
            BigShotPainter = ifelse(author %in% 
                                   unlist(BigShotPainters), 1, 0),
            endbuyer = ifelse(endbuyer=="U"|winningbiddertype == "",
-                                      "None",
-                                      winningbiddertype) %>% as.factor(), 
+                                      "N",
+                                      winningbiddertype) %>% 
+                                  substr(.,1,1) %>% as.factor(), 
            dealer = factor(dealer),
            lot = str_replace_all(lot, "lot", "")%>% as.numeric(),
            origin_author = factor(origin_author),
@@ -159,11 +168,15 @@ data.train = paintings_train %>%
                                       winningbiddertype) %>% as.factor(),
            type_intermed = factor(ifelse(type_intermed=="", 
                                          "None",
-                                         type_intermed)),
-           school_pntg=as.factor(school_pntg),
+                                         type_intermed))%>% substr(.,1,1),
+           school_pntg= ifelse(school_pntg %in% c("A","S","G","X"),
+                               "other or unknown", school_pntg) %>% 
+                                as.factor(),
            authorstandard=as.factor(authorstandard),
            artistliving=as.factor(artistliving),
-           authorstyle=as.factor(authorstyle)
+           authorstyle=ifelse(authorstyle %in% c("m","g","o","al","co","pa"), 
+                              "other", ifelse(authorstyle=="", "missing", 
+                                              authorstyle)) %>% as.factor()
 ) 
 
 sum(is.na((data$lot %>% str_replace_all(., "lot", "") %>% as.numeric())))
@@ -187,59 +200,27 @@ table3=data.train %>% group_by(artistliving) %>%
   summarize(count = n(), avg.spend = mean(logprice)/mean(data.train$logprice)) %>% 
   arrange(desc(avg.spend))
 #reduce factor levels for three varaibles
-levels(data.train$school_pntg) <- c(levels(data.train$school_pntg), "other or unknown") 
-data.train$school_pntg[data$school_pntg %in% c("A","S","G","X")] <- "other or unknown" 
+data.train$school_pntg[data$school_pntg %in% c("A","S","G","X")] <- "other or unknown" %>% as.factor
 data.train$authorstandard<- ifelse(data.train$authorstandard  %in% table1$authorstandard, 1, 0)
-levels(data.train$authorstyle) <- c(levels(data.train$authorstyle), "other","missing") 
-data.train$authorstyle[data.train$authorstyle %in% c("m","g","o","al","co","pa")] <- "other" 
-data.train$authorstyle[data.train$authorstyle %in% c("")] <- "missing" 
+# levels(data.train$authorstyle) <- c(levels(data.train$authorstyle), "other","missing") 
+# data.train$authorstyle[data.train$authorstyle %in% c("m","g","o","al","co","pa")] <- "other" 
+# data.train$authorstyle[data.train$authorstyle %in% c("")] <- "missing" 
 
 # Selecting all the relevant variables for final table
 data.train = data.train%>% 
   select(logprice, Shape, log.Surface, Height_in, Width_in, year, artistliving,
-         authorstyle, diff_origin, lot,
+         diff_origin, lot,
           High_Roller, BigShotPainter, Nfigures, Material, position, endbuyer, 
-          origin_author, winningbiddertype, type_intermed, dealer, authorstyle,
-          authorstandard, school_pntg, dealer, origin_author, winningbiddertype, 
+          origin_author, type_intermed, dealer,
+          authorstandard, school_pntg, dealer, origin_author, 
           engraved, original, prevcoll, othartist, paired, figures, diff_origin,
           lrgfont, relig, landsALL, lands_sc, lands_elem, lands_figs, lands_ment, 
           arch, mytho, peasant, othgenre, singlefig, portrait, still_life, discauth, 
           history, allegory, pastorale, other) %>% na.omit()
 
-# train = paintings_train %>% select(sale, lot, position, dealer # lot was excluded (too many vars), sale was excluded, 
-# ,year, origin_author, origin_cat, school_pntg 
-# ,diff_origin, logprice 
-# ,subject, authorstandard, artistliving, authorstyle # Dropped subject. too specific
-# ,author, winningbidder, winningbiddertype, endbuyer # Changed author and winning bidder to top names 
-# ,Interm, type_intermed, # dropped Interm
-# Height_in, Width_in, Diam_in # Reduced to just Height/Width
-# ,Surface_Rect, Surface_Rnd, Shape ,Surface, # Reduced to 2
-# 
-# material, mat, materialCat #- reduced this to 1 variable
-# ,nfigures, engraved, original, prevcoll 
-# ,othartist, paired, figures, finished 
-# ,lrgfont, relig, landsALL, lands_sc 
-# ,lands_elem, lands_figs, lands_ment, arch ,
-# mytho, peasant, othgenre, singlefig, 
-# portrait, still_life, discauth, history, 
-# allegory, pastorale, other 
-# )
-
-# Are these last categories super sparse?
-
-test = data.train %>% select( prevcoll
-,othartist, paired, figures
-,lrgfont, relig, landsALL, lands_sc
-,lands_elem, lands_figs, lands_ment, arch ,
-mytho, peasant, othgenre, singlefig,
-portrait, still_life, discauth, history,
-allegory, pastorale, other
-)
-
-for (i in 1:ncol(test)) print(paste0(colnames(test)[i], ":", round(mean(test[,i], na.rm = TRUE), 2)))
-
-
 ```
+One of the biggest challenges of cleaning this data was determining how to retain relevant information while ensuring there were no groups of factors that were too sparsely populated. In that case, the estimates for those sparsely populated variables could lead to serious problems with model builiding and could adversely impact the model's ability to generalize. Some of these variables that had to be manipulated included material, shape, type of intermediary and winning bidder. There were also several variables that we changed to dichotomous because the factors were too sparse and the impact of the additional categories were approximately the same as others. 
+
 
 
 * Model selection: must include a discussion
@@ -253,6 +234,7 @@ model2 = step(model1,direction="both",k=2, trace =FALSE)
 summary(model2)
 #BIC
 # 16 variables
+set.seed(9)
 model3 = step(model1,direction="both",k=log(nrow(data.train)), trace=FALSE)
 summary(model3)
 #plot coefficient comparison model btw aic, bic, and ols
@@ -260,98 +242,73 @@ summary(model3)
   left_join(data_frame(name=names(coef(model2)),AIC=coef(model2)))%>%
   left_join(data_frame(name=names(coef(model3)),BIC=coef(model3)))
 kable(beta_bic_aic_ols)
+summary(model1)
+
+
 ```
 As is shown in the table, 22 variables are selected by AIC, while 14 variables are selected by BIC. BIC excluded all variables that are excluded by AIC, except for "Interm", which is excluded by AIC but included in BIC model.
 
 
+```{r AIC/BIC}
+model1 = lm(logprice ~ .  + log.Surface:Shape + type_intermed:endbuyer  -winningbiddertype -authorstyle , data.train)
+
+# model1.inter = model1
+### BMA - selecting the highest probability model
+#AIC
+#25 variables
+model2 = step(model1,direction="both",k=2, trace =FALSE)
+summary(model2)
+#BIC
+# 16 variables
+model3 = step(model1,direction="both",k=log(nrow(data.train)), trace=FALSE)
+summary(model3)
+```
+
+
 ```{r BAS warning = FALSE, message = FALSE}
 library(BAS)
-basg=bas.lm(logprice ~ . + log(lot) + lot:dealer + log.Surface:Shape + type_intermed:endbuyer + dealer:year -winningbiddertype -authorstyle -school_pntg
+set.seed(9)
+basg=bas.lm(logprice ~ .  + log.Surface:Shape 
 , data=data.train,
 prior="g-prior", a=nrow(data.train), modelprior=uniform(),
 method="MCMC", MCMC.iterations = 500000, thin = 20)
+
+
+par(mfrow = c(2,2))
 plot(basg)
-diagnostics(basg, type="pip")
 
-#pred=predict(baslm, newdata = df, estimator='HPM')
-basz = bas.lm(logprice ~ .+ log(lot) + lot:dealer + log.Surface:Shape + type_intermed:endbuyer + dealer:year -winningbiddertype -authorstyle -school_pntg, 
-               data=data.train,
-               prior="JZS", a=nrow(data.train), modelprior=uniform(),
-               method="MCMC", MCMC.iterations = 500000, thin = 20, 
-               initprobs="marg-eplogp")
-plot(basz)
-diagnostics(basz, type="pip")
-image(basg, rotate = F)
-image(basz, rotate = F)
+## Plotting Confidence interval
+plot(confint(coef(basg, estimator = "HPM")))
+
+# Highest PRobability model
+HPM <- predict(basg, estimator = "HPM")
+variable.names(HPM)
+
+BPM <- predict(basg, estimator = "BPM")
+variable.names(BPM)
+
+x = confint(coef(basg, estimator = "BPM"))
+
+Plot.df = data_frame(Variable = attr(x, "dimnames")[[1]], 
+                  Estimate = x[,3], Lower = x[,1], 
+                  Upper = x[,2]) %>% 
+  mutate(In.Zero = ifelse(Upper*Lower<0, 1, 0)) %>%
+  filter(Variable %in% variable.names(BPM))
+
+ggplot(data = Plot.df, aes(x = Variable, y = Estimate, color = factor(In.Zero)))+ 
+  geom_point() +
+  geom_errorbar(aes(ymin = Lower, ymax = Upper))
+
+ggplot(data = Plot.df%>%filter(abs(Estimate)>.1), 
+       aes(x = Variable, y = Estimate, color = factor(In.Zero)))+ geom_point() +
+       geom_errorbar(aes(ymin = Lower, ymax = Upper)) + 
+       theme(axis.text.x=element_text(angle=90, hjust=1))
 
 
+image(basg)
 
-bas.summary <- summary(paint.bas)
-kable(bas.summary, align = "c", digits =3 )
-diagnostics(paint.bas, type = "pip")
-
-
-image(paint.bas)
-plot(paint.bas, which = 4)
-```
-
-
-```{r LASSO}
-RMSE = function(obs, pred){
-  return( mean(sqrt((obs-pred)^2)))}
-
-In.Interval = function(upper, lower, observed){
-  mean(observed>=lower && observed<=upper)
-}
-
-### LASSO
-y = data.train[,1]
-x = model.matrix(logprice ~., data = data.train)
-lasso = cv.glmnet(y = y, 
-                  x = x,
-                  standardize=TRUE,
-                  alpha = 1)
-plot(lasso)
-bestlambda = lasso$lambda.min
-lasso.pred=predict(lasso,
-                   newx=x,
-                   s=bestlambda)  
-# Creating a table of the selected variables
-Selected.Variables = as.data.frame((coef(lasso, bestlambda))
-                                   [which(coef(lasso, bestlambda)!=0),])
-colnames(Selected.Variables) = "Value"
-kable(Selected.Variables, align = 'c', digits = 4, 
-      format = 'markdown', 
-      caption = "Selected Variables from LASSO")
-lasso.RMSE = RMSE(lasso.pred, y)
-## Bootstrapping for prediction interval 
-boots = 50
-preds = matrix(nrow = nrow(x), ncol = boots)
-for (i in 1:boots){
-  samp = sample(nrow(x), replace = TRUE)
-  x = x[samp,]
-  y = y[samp]
-  lasso = cv.glmnet(y = y, x = x,
-                       standardize=TRUE,
-                       alpha = 1)
-  preds[,i] = predict(lasso, x, s = "lambda.min")
-}
-Var.Pred = apply(preds, 1, var)
-SE = lasso.RMSE + sqrt(Var.Pred)
-lasso.predictions = data_frame(fit = as.vector(lasso.pred), actual = as.vector(y) , 
-                               lower = as.vector(lasso.pred - 1.96*SE),
-                               upper = as.vector(lasso.pred + 1.96*SE))
-ggplot(data = lasso.predictions %>% arrange(fit), aes(x = actual, y = fit)) + 
-        geom_point() + 
-        geom_errorbar(aes(ymin = lower, ymax = upper)) + 
-        geom_abline(intercept = 0, slope = 1)
-lasso.coverage = In.Interval(lower = lasso.predictions$lower, 
-                             upper = lasso.predictions$upper, 
-                             observed = lasso.predictions$actual)
 
 ```
-
-
 
 * Residual: must include residual plot(s) and a discussion.  
 ```{r}
@@ -395,10 +352,96 @@ In order to have a passing wercker badge, your file for predictions needs to be 
 Save predictions and intervals.  
 ```{r predict-model-final, echo=FALSE, include=FALSE}
 # change model1 or update as needed
-# predictions = as.data.frame(
-#   exp(predict(model1, newdata=paintings_test,
-#               interval = "pred")))
-# save(predictions, file="predict-test.Rdata")
+## Test data
+data.test = paintings_test %>% 
+      mutate( # Painting physical features
+           Shape = ifelse(Shape=="squ_rect", 1, 0),
+           log.Surface = log(Surface),
+           Height_in = coalesce(Height_in, Diam_in),
+           Width_in = coalesce(Width_in, Diam_in),
+           year = factor(year),
+           Nfigures = ifelse(nfigures>1, 1, 0),
+           Material = material %in% c("cuivre", "argent"),
+           position = ifelse(position>1, 1, position),
+           # Buyer Characteristics
+           High_Roller = ifelse(winningbidder %in% 
+                                  unlist(HighRollers), 1, 0),
+           BigShotPainter = ifelse(author %in% 
+                                  unlist(BigShotPainters), 1, 0),
+           endbuyer = ifelse(endbuyer=="U"|winningbiddertype == "",
+                                      "N",
+                                      winningbiddertype) %>% 
+                                  substr(.,1,1) %>% as.factor(), 
+           dealer = factor(dealer),
+           lot = str_replace_all(lot, "lot", "")%>% as.numeric(),
+           origin_author = factor(origin_author),
+           winningbiddertype = ifelse(is.na(winningbiddertype)|winningbiddertype == "",
+                                      "None",
+                                      winningbiddertype) %>% as.factor(),
+           type_intermed = factor(ifelse(type_intermed=="", 
+                                         "None",
+                                         type_intermed))%>% substr(.,1,1),
+           school_pntg= ifelse(school_pntg %in% c("A","S","G","X"),
+                               "other or unknown", school_pntg) %>% 
+                                as.factor(),
+           authorstandard=as.factor(authorstandard),
+           artistliving=as.factor(artistliving),
+           authorstyle=ifelse(authorstyle %in% c("m","g","o","al","co","pa"), 
+                              "other", ifelse(authorstyle=="", "missing", 
+                                              authorstyle)) %>% as.factor()
+) 
+
+sum(is.na((data$lot %>% str_replace_all(., "lot", "") %>% as.numeric())))
+
+#variable description tables
+table=data.test %>% group_by(school_pntg) %>% 
+  summarize(count = n(), 
+            avg.spend = mean(logprice)/mean(data.test$logprice)) %>% 
+  arrange(desc(avg.spend))
+
+table1=data.test %>% group_by(authorstandard) %>% 
+  summarize(count = n(), avg.spend = mean(logprice)/mean(data.test$logprice)) %>% 
+  filter(abs(avg.spend-1)>0.1) %>% 
+  arrange(desc(avg.spend))
+
+table2=data.test %>% group_by(authorstyle) %>% 
+  summarize(count = n(), avg.spend = mean(logprice)/mean(data.test$logprice)) %>% 
+  arrange(desc(avg.spend))
+
+table3=data.test %>% group_by(artistliving) %>% 
+  summarize(count = n(), avg.spend = mean(logprice)/mean(data.test$logprice)) %>% 
+  arrange(desc(avg.spend))
+#reduce factor levels for three varaibles
+data.test$school_pntg[data.test$school_pntg %in% c("A","S","G","X")] <- "other or unknown" %>% as.factor
+data.test$authorstandard<- ifelse(data.test$authorstandard  %in% table1$authorstandard, 1, 0)
+
+
+# Selecting all the relevant variables for final table
+data.test = data.test%>% 
+  select( Shape, log.Surface, Height_in, Width_in, year, artistliving,
+          diff_origin, lot,
+          High_Roller, BigShotPainter, Nfigures, Material, position, endbuyer, 
+          origin_author, winningbiddertype, type_intermed, dealer,
+          authorstandard, school_pntg, dealer, origin_author, 
+          engraved, original, prevcoll, othartist, paired, figures, diff_origin,
+          lrgfont, relig, landsALL, lands_sc, lands_elem, lands_figs, lands_ment, 
+          arch, mytho, peasant, othgenre, singlefig, portrait, still_life, discauth, 
+          history, allegory, pastorale, other) %>% mutate(logprice = 0) #%>% na.omit()
+missing.data = which(apply(data.test, 1, function(x) max(is.na(x))==1))
+data.test = data.test%>% na.omit()
+
+BMA.prediction = predict(basg, newdata = data.test, estimator = "BPM",
+                         se.fit = TRUE, interval = "prediction")
+
+predictions = matrix(nrow = nrow(paintings_test), ncol = 3)
+predictions[-missing.data,] = cbind(confint(BMA.prediction)[,3], confint(BMA.prediction)[,1], confint(BMA.prediction)[,2])
+predictions[missing.data,] = colMeans(cbind(confint(BMA.prediction)[,3], confint(BMA.prediction)[,1], confint(BMA.prediction)[,2]))
+predicitons = na.omit(predictions)
+
+save(predictions, file="predict-test.Rdata")
+
+dim(data.train)
+
 ```
 
 
