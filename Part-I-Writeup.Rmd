@@ -1,6 +1,6 @@
 ---
 title: "Part-I-Writeup"
-author: "Brian Cozzi"
+author: "Brian Cozzi, Zhaolin Ying, Wei Zhang"
 date: "12/7/2018"
 output: pdf_document
 ---
