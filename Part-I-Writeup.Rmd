@@ -246,8 +246,8 @@ summary(model1)
 
 
 ```
-As is shown in the table, 22 variables are selected by AIC, while 14 variables are selected by BIC. BIC excluded all variables that are excluded by AIC, except for "Interm", which is excluded by AIC but included in BIC model.
 
+As is shown in the table, 29 variables are selected by AIC, while 17 variables are selected by BIC. BIC excluded all variables that are excluded by AIC.
 
 ```{r AIC/BIC}
 model1 = lm(logprice ~ .  + log.Surface:Shape + type_intermed:endbuyer  -winningbiddertype -authorstyle , data.train)
