@@ -29,7 +29,9 @@ Once you are satisfied with your model, provide a write up of your data analysis
 ##1. Introduction: Summary of problem and objectives (5 points)
 
 INTRO PARAGRAPH
-The art historian would like to know what factors drove prices of painting, which paintings might be overvalued and which are undervalued.   It is up to you to decide what methods you want to use (frequentist or Bayesian or a combination) to answer these questions, and implement them to help to identify undervalued and overvalued paintings, as well as which features and possible interactions are at play.
+There are many factors that drive the prices of paintings. Our team wants to find the intrinsic value of paintings then we can judge whether each specific painting on the market has been overvalued or undervalued. In our project, we foucs on the variable selection and tries to detect which variables tend to be informative.
+
+
 
 Initial inspection of the data revealed that it contained 59 variables: 2 outcomes (price and logprice) and 57 predictors. These predictors fit into several relatively well-defined categories: \
 - Artist Characteristics \
