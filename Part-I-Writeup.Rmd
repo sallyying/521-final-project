@@ -224,6 +224,7 @@ One of the biggest challenges of cleaning this data was determining how to retai
 
 
 * Model selection: must include a discussion
+
 ```{r BIC}
 model1 = lm(logprice ~ . +log(lot) + lot:dealer + log.Surface:Shape + type_intermed:endbuyer + dealer:year -winningbiddertype, data.train)
 
@@ -307,6 +308,14 @@ ggplot(data = Plot.df%>%filter(abs(Estimate)>.1),
 
 image(basg)
 
+```{r rmse}
+#in sample rmse
+rmse_ols=RMSE(exp(predict(model1)),exp(data.train$logprice))
+rmse_aic=RMSE(exp(predict(model2)),exp(data.train$logprice))
+rmse_bic=RMSE(exp(predict(model3)),exp(data.train$logprice))
+rmse = data_frame(model=c("ols","aic","bic"),rmse=c(rmse_ols,rmse_aic,rmse_bic))
+kable(rmse)
+```
 
 ```
 
