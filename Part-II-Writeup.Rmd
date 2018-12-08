@@ -1,0 +1,329 @@
+---
+title: "Part-II-Writeup"
+author: "Brian Cozzi"
+date: "12/8/2018"
+output: html_document
+---
+
+### Data Processing
+
+#### Physical Features of Painting
+```{r Physical Features, message=FALSE}
+# Shape and Surface
+plot1 = ggplot(data = paintings_train, 
+               aes(x = Surface, y = logprice,
+                   shape = school_pntg, color = Shape))+
+                geom_point() + ggtitle("Surface and Log Price")
+
+plot2 = ggplot (data = paintings_train, 
+                aes(x = log(Surface), y = logprice,
+                    shape = school_pntg, color = Shape))+
+                geom_point() + ggtitle("Log Surface and Log Price") 
+                
+plot.df = paintings_train %>% mutate(lot = str_replace_all(lot, "lot", "")%>% as.numeric())
+plot3 = ggplot (data = plot.df, 
+                aes(x = lot, y = logprice, color = factor(dealer)))+
+                geom_point() + ggtitle("Lot and Log Price")
+plot4 = ggplot (data = plot.df, 
+                aes(x = log(lot), y = logprice, color = factor(dealer)))+
+                geom_point() + ggtitle("Log Lot and Log Price")
+
+plot5 = ggplot (data = paintings_train, 
+                aes(x = nfigures, y = logprice, color = factor(dealer)))+
+                geom_point() + ggtitle("NFigures and Log Price")
+plot6 = ggplot (data = plot.df, 
+                aes(x = log(nfigures+1), y = logprice, color = factor(dealer)))+
+                geom_point() + ggtitle("Log NFigures and Log Price")
+
+gridExtra::grid.arrange(plot1, plot2, plot3, plot4, plot5, plot6, nrow = 3)
+
+
+```
+
+The plots above show several variables that become increasingly sparse as the values increase. In other words, their distributions are very positively skewed making them good candidates for a log transformation. The plots on the left show the relationship between the untransformed variables on the x axis and log price on the y axis and the plots on the right show the relationship of the log transformed values. Clearly, in all cases, the log transformation makes these plots more readable, though it seems that the only clear linear relationship is with log surface. For log lot, there does not appear to be a discernable relationship with price. With NFigures, we notice there are a lot of . Because these observations could significantly impact the intercept of this relationship, we determined that it would be best to simply transform this into a dichotomous variable with 0 signifiying 0 or 1 figures and 1 signifying more than 1 figures. 
+
+We also see from these plots that the dealer, regardless of the variable on the x axis, seems to stratify the price of the painting fairly neatly. Additionally, we can see from the plot with surface that nearly all the paintings are squares or rectangles. 
+
+#### Painter Characteristics
+```{r Few Tables}
+ggplot (data = paintings_train, 
+                aes(x = school_pntg, y = logprice, color = factor(artistliving)))+
+                geom_jitter() + ggtitle("Artist Features and Log Price")
+
+```
+Artist information includes 6 variables, "school_pntg", "subject",     "authorstandard", "artistliving", "authorstyle", and "author". "subject" is text description of the painting, which is very hard to quantify or act as factors, so we decide to delete it. "authorstandard" is the standard version of the "author". "authorstandard" has 519 unique values, while "author" has 831 unique values. So we think using "authorstandard" instead of "author" would be a better choice. 
+
+In summary, we would use four variables under this category, "school_pntg", "artistliving", "authorstandard", and "authorstyle". And we would use all of them as factors. For "school_pntg", we have 4 levels by combining "A|G|S|X" into one category. We combine those four levels because their data sizes are very small. For "artistliving", it is a binary variable with 0/1. For "authorstandard", we pick authors, whose corresponding mean value of logprices is at least 10% bigger than the mean value of all logprices in the sample data, or at least 10% lower than that, as 1. The rest authors are set as 0. For "authorstyle", we have 5 levels by combining "m|g|o|al|co|pa" since their sample sizes are very small.
+
+From the plot, we can see that "authorstandard" and "school_pntg" may have impact on logprice. "Artistliving" show pretty sparse values of 1 (living), thus making it more difficult to determine a relationship.
+
+Looking at the plots for binary (integer) predictors, we are looking to identify whether a value of 1 or 0 for a variable changes how it is distributed across logprice. But the plots don't look obvious enough to tell the relationships.
+
+
+#### Yearly Effects
+```{r Sales by Dealer and Year}
+
+ggplot(data = paintings_train, aes(x = factor(year), y = logprice, color = dealer)) + 
+  geom_jitter() + ggtitle("Sales by Dealer and Year") + xlab("Year")
+
+```
+The visualization above shows that the effect of hear on the median sale price does not appear to be linear. Without taking dealer into account yet, it seems that some years have very little activity and others are densely populated. From this visualization, it seems clear year should be interpreted as a factor given the information we have at our disposal. It is worth considering that the relative activity or inactivity may be due to other economic factors for which we do not have data. 
+
+Another key takeaway from this is that some dealers were particularly active for some years, but relatively inactive for others. Without much subject area expertise, it is difficult to develop some intuition for why this may be happening. While this may initially suggest that an interaction term is useful, it should be noted that there are some years in which dealers are totally inactive which could seriously hinder the interpretability of the coefficients for the inactive years. 
+
+
+##3. Development and assessment of an initial model (10 points)
+
+* Initial model: must include a summary table and an explanation/discussion for variable selection and overall amount of variation explained. 
+```{r Format Data}
+# Formatting for some variables
+# Top 10 bidders
+data = paintings_train
+HighRollers = data %>% group_by(winningbidder) %>% 
+              summarize(count = n(), avg.spend = mean(logprice)/mean(data$logprice)) %>% 
+              filter(count>10) %>% arrange(desc(avg.spend)) %>% head(10) %>%
+              select(winningbidder) %>%
+              head(10) %>% as.list
+
+# Top 5 Pricey Painters
+BigShotPainters = data %>% group_by(authorstandard) %>% 
+              summarize(count = n(), avg.haul = mean(logprice)/mean(data$logprice)) %>% 
+              filter(count>10) %>% arrange(desc(avg.haul)) %>%
+              select(authorstandard) %>%
+              head(10) %>% as.list
+
+data %>% group_by(authorstandard) %>% 
+              summarize(count = n(), avg.haul = mean(logprice)/mean(data$logprice)) %>% 
+              filter(count>10) %>% arrange(desc(avg.haul))
+
+data %>% group_by(authorstyle) %>% 
+              summarize(count = n(), avg.haul = mean(logprice)/mean(data$logprice)) %>% arrange(desc(avg.haul))
+
+
+## Train data
+data.train = paintings_train %>% 
+      mutate( # Painting physical features
+           Shape = ifelse(Shape=="squ_rect", 1, 0),
+           log.Surface = log(Surface),
+           Height_in = coalesce(Height_in, Diam_in),
+           Width_in = coalesce(Width_in, Diam_in),
+           year = factor(year),
+           Nfigures = ifelse(nfigures>1, 1, 0),
+           Material = material %in% c("cuivre", "argent"),
+           position = ifelse(position>1, 1, position),
+           # Buyer Characteristics
+           High_Roller = ifelse(winningbidder %in% 
+                                  unlist(HighRollers), 1, 0),
+           High_Roller.name = ifelse(winningbidder %in% 
+                                  unlist(HighRollers), winningbidder, "Cheap"),
+           BigShotPainter = ifelse(authorstandard %in% 
+                                  unlist(BigShotPainters), 1, 0),
+           BigShotPainter.name = ifelse(authorstandard %in% 
+                                  unlist(BigShotPainters), authorstandard, "Hack"),
+           endbuyer = ifelse(endbuyer=="U"|winningbiddertype == "",
+                                      "N",
+                                      winningbiddertype) %>% 
+                                  substr(.,1,1) %>% as.factor(), 
+           dealer = factor(dealer),
+           lot = str_replace_all(lot, "lot", "")%>% as.numeric(),
+           origin_author = factor(origin_author),
+           winningbiddertype = ifelse(is.na(winningbiddertype)|winningbiddertype == "",
+                                      "None",
+                                      winningbiddertype) %>% as.factor(),
+           type_intermed = factor(ifelse(type_intermed=="", 
+                                         "None",
+                                         type_intermed))%>% substr(.,1,1),
+           school_pntg= ifelse(school_pntg %in% c("A","S","G","X"),
+                               "other or unknown", school_pntg) %>% 
+                                as.factor(),
+           # authorstandard=as.factor(authorstandard), 
+           artistliving=as.factor(artistliving),
+           authorstyle=ifelse(authorstyle %in% c("m","g","o","al","co","pa"), 
+                              "other", ifelse(authorstyle=="", "missing", 
+                                              authorstyle)) %>% as.factor()
+) 
+# Selecting all the relevant variables for final table
+data.train = data.train%>% 
+  select(logprice, Shape, log.Surface, Height_in, Width_in, year, artistliving,
+          lot, position, dealer, origin_author, origin_cat, school_pntg,
+          diff_origin, authorstandard, authorstyle,
+          author, winningbiddertype, endbuyer, Interm, type_intermed,
+           engraved, original, prevcoll, othartist, paired, figures, finished,
+          lrgfont, subject,
+          ## Painting Features
+          relig, landsALL, lands_sc, lands_elem, lands_figs, lands_ment, arch,
+          mytho, peasant, othgenre, singlefig, portrait, still_life, discauth, history,
+          allegory, pastorale, other )
+
+
+### Additional variables to transform 
+# - subject
+# library(randomForest)
+# Maybe you can adjust the similarity measures between rows
+
+
+
+
+
+original_books <- austen_books() %>%
+  group_by(book) %>%
+  mutate(line = row_number(),
+         chapter = cumsum(str_detect(text, regex("^chapter [\\divxlc]",
+                                                 ignore_case = TRUE)))) %>%
+  ungroup()
+
+
+library(tidytext)
+tidy_books <- original_books %>%
+  unnest_tokens(word, text)
+
+tidy_books
+
+data.train %>% select(subject)
+
+
+
+```
+
+```{r}
+
+library(dplyr)
+library(stringr)
+library(tm)
+library(reshape2)
+
+## Fixing the subject to have multiple columns
+data.train.desc = data.train %>% select(subject) %>%
+  mutate(subject = str_replace_all(subject, "\\(+[0-9]+\\)", "")) %>%
+  mutate(subject = str_replace_all(subject, "\\,", "")) %>%
+  mutate(subject = tolower(subject)) %>%
+  mutate(subject = str_split(subject, " "), ID = row_number()) %>% unnest() %>%
+  mutate(subject = str_replace_all(subject, "\\/", "")) %>% group_by(ID, subject) %>%
+  filter(subject != "") %>% anti_join(data_frame(subject = stopwords(kind="french"))) 
+## Still need to remove numbers colons semicolons l' d'
+
+
+## Taking a look at the top words
+data.train %>% select(-subject) %>%
+  mutate(ID = row_number()) %>% inner_join(data.train.desc) %>%
+  group_by(subject) %>% summarize(avg.cost = mean(logprice), freq = n()) %>%
+  filter(freq>10) %>% arrange(desc(avg.cost))
+
+## Adding each word to the dataset
+# Creating a dataset where each word is a column
+data.train.subject = data.train.desc %>% ungroup() %>% 
+  mutate(subject = str_replace_all(subject, "[0-9]", "")) %>%
+  mutate(subject = str_replace_all(subject, "\\+", "")) %>%
+  mutate(subject = str_replace_all(subject, "\\=", "")) %>%
+  mutate(subject = str_replace_all(subject,"[[:punct:]]", "")) %>%
+  mutate(subject = iconv(subject, to="ASCII//TRANSLIT")) %>%
+  filter(subject != "") %>%
+  mutate(subject = factor(subject), val = n()) %>%
+  group_by(ID,subject) %>%
+  ungroup() %>% dcast(ID ~ subject, value.var="val")
+
+data.train.features = data.train %>% select(logprice, relig, landsALL, lands_sc, lands_elem, lands_figs, 
+                                            lands_ment, arch,mytho, peasant, othgenre, singlefig, 
+                                            portrait, still_life, discauth, history,allegory, 
+                                            pastorale, other) %>% mutate(ID = row_number()) %>%
+  inner_join(data.train.subject, by = "ID") %>% select(-ID)
+
+```
+
+
+```{r Random Forest}
+library(randomForest)
+
+test.forest = randomForest(logprice~., data = data.train.features) 
+varImpPlot(test.forest)
+
+
+ID.list = data.train.desc %>% ungroup() %>% filter(str_detect(tolower(subject), "paysage")) %>% select(ID) %>% as.list
+ID.list
+#Tableaux??
+data.train[ID.list$ID,c("subject","landsALL")] %>% View
+
+```
+
+```{r}
+
+library(sparklyr)
+library(dplyr)
+library(ggplot2)
+library(stringr)
+
+
+sc = spark_connect(master = "local[8]", 
+                   spark_home = "/data/spark/spark-2.3.2-bin-hadoop2.7/")
+
+## Text Data
+
+### Shakespeare
+
+hamlet = readLines("/data/shakespeare/hamlet.txt")
+
+hamlet %>%
+  data_frame(line = .) %>%
+  mutate(
+    line = tolower(line) %>%
+      str_replace_all("[^a-z ]", "")
+  ) %>%
+  transmute(
+    word = str_split(line," ")
+  ) %>%
+  tidyr::unnest() %>%
+  filter(word != "") %>% 
+  anti_join(tidytext::stop_words) %>%
+  count(word) %>%
+  arrange(desc(n))
+
+hamlet %>%
+  data_frame(line = .) %>%
+  tidytext::unnest_tokens(line, word)
+
+?tidytext
+library(tidytext)
+install.packages('tidytext')
+?tidytext::stop_words
+
+hamlet_sp = spark_read_text(sc, "hamlet", "/data/shakespeare/hamlet.txt")
+
+hamlet_sp %>%
+  mutate(
+    line = lower(line) %>% regexp_replace("[^a-z ]", "")
+  ) %>%
+  ft_tokenizer("line", "words") %>%
+  ft_stop_words_remover("words", "word") %>%
+  transmute(
+    word = explode(word)
+  ) %>%
+  filter(word != "") %>%
+  count(word) %>%
+  arrange(desc(n))
+  
+  
+spark_read_text(sc, "hamlet", "/data/shakespeare/*.txt") %>%
+  mutate(
+    line = lower(line) %>% regexp_replace("[^a-z ]", "")
+  ) %>%
+  ft_tokenizer("line", "words") %>%
+  ft_stop_words_remover("words", "word") %>%
+  transmute(
+    word = explode(word)
+  ) %>%
+  filter(word != "") %>%
+  count(word) %>%
+  arrange(desc(n))
+
+library(jsonlite)
+
+test = fromJSON("https://data.cityofchicago.org/resource/8v9j-bter.json")
+
+str(test)
+
+library(tidyr)
+str(test)  
+
+```
+
+
