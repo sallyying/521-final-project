@@ -26,7 +26,8 @@ set.seed(9)
 
 ##1. Introduction: Summary of problem and objectives (5 points)
 
-We are tasked with identifying the relevant variables for predicting the cost of a painting for a few years in teh 18th century. In addition to gaining insight on these variables, we are also interested in generating a prediction to identify paintings that may have been overvalued or undervalued given a set of predictors. 
+We are tasked with identifying the relevant variables for predicting the cost of a painting for a few years in teh 18th century. In addition to gaining insight on these variables, we are also interested in generating a prediction to identify paintings that may have been overvalued or undervalued given a set of predictors. There are many factors that drive the prices of paintings. Our team wants to find the intrinsic value of paintings then we can judge whether each specific painting on the market has been overvalued or undervalued. In our project, we foucs on the variable selection and tries to detect which variables tend to be informative.
+
 
 Initial inspection of the data revealed that it contained 59 variables: 2 outcomes (price and logprice) and 56 predictors. These predictors fit into several relatively well-defined categories: \
 - Artist Characteristics \
@@ -77,6 +78,7 @@ The plots above show several variables that become increasingly sparse as the va
 
 We also see from these plots that the dealer, regardless of the variable on the x axis, seems to stratify the price of the painting fairly neatly. Additionally, we can see from the plot with surface that nearly all the paintings are squares or rectangles. 
 
+
 ```{r Few Tables}
 ggplot (data = paintings_train, 
                 aes(x = school_pntg, y = logprice, color = factor(artistliving)))+
@@ -124,6 +126,9 @@ plot2 = ggplot(data = plot.df,
 gridExtra::grid.arrange(plot1, plot2, nrow = 1)
 
 ```
+Our team finds that type R delaler almost dominates the paintings before year 1776. Type P deal becomes more frequently active from year 1775.
+
+
 
 ##3. Development and assessment of an initial model (10 points)
 
@@ -216,7 +221,7 @@ data.train = data.train%>%
   select(logprice, Shape, log.Surface, Height_in, Width_in, year, artistliving,
          diff_origin, lot,
           High_Roller, BigShotPainter, Nfigures, Material, position, endbuyer, 
-          origin_author, type_intermed, dealer,
+          origin_author, type_intermed,
           authorstandard, school_pntg, dealer, origin_author, 
           engraved, original, prevcoll, othartist, paired, figures, diff_origin,
           lrgfont, relig, landsALL, lands_sc, lands_elem, lands_figs, lands_ment, 
@@ -227,10 +232,48 @@ data.train = data.train%>%
 One of the biggest challenges of cleaning this data was determining how to retain relevant information while ensuring there were no groups of factors that were too sparsely populated. In that case, the estimates for those sparsely populated variables could lead to serious problems with model builiding and could adversely impact the model's ability to generalize. Some of these variables that had to be manipulated included material, shape, type of intermediary and winning bidder. There were also several variables that we changed to dichotomous because the factors were too sparse and the impact of the additional categories were approximately the same as others. 
 
 
-```{r BAS, warning = FALSE, message = FALSE}
+* Model selection: must include a discussion
+
+In order to reduce the variables to only those that had a significant impact on cost, we followed a 2-step approach. 
+
+
+### Model Selection: BIC
+
+Step 1 involved running 2 stepwise BIC regressions on logprice using 2 different sets of variables and all possible 2 way interactions for each set. The first set of variables included the painting's physical characteristics such as size, shape, number of figures and material. The second set of variables used terms that were related to the bid such as HighRoller, type_intermed and position. The resulting interaction terms were used in the final BAS model where running a two-way interaction for every variable in our training dataset was infeasible. 
+
+```{r BIC, warning = FALSE, message = FALSE}
+# Physical characteristics
+model1.physical = lm(logprice ~ (Shape + log.Surface+ Height_in+ Width_in+ artistliving+
+          + BigShotPainter+ Nfigures+ Material+ position+ 
+          origin_author + school_pntg + engraved+ original+
+           othartist+ paired+ figures)^2, data.train)
+set.seed(9)
+model3.physical = step(model1.physical,k=log(nrow(data.train)))
+summary(model3.physical)
+# Artist LivingxBigShotPainter + ArtistLivingxPosition
+
+model1.bidding = lm(logprice ~ (diff_origin+ lot+ High_Roller+ position+ endbuyer+ 
+          type_intermed + dealer + prevcoll+
+            lrgfont)^2, data.train)
+model3.bidding = step(model1.bidding,k=log(nrow(data.train)))
+summary(model3.bidding)
+# PositionxDealer + LotxDealer
+
+```
+
+
+### Model Selection: BAS
+
+The BIC stepwise regressions in the first step gave 4 fairly intuitive interactions that were used as predictors in this step- lot:dealer, artistliving:BigShotPainter, position:dealer, artistliving:position. Interestingly, in neither the Best Predictive Model (BPM) nor the Highest Probability Model (HPM) did we observe the interaction terms from the previous step. However, this iteration yielded exactly 20 unique variables for the final model. 
+
+```{r BAS warning = FALSE, message = FALSE}
 library(BAS)
 set.seed(9)
-basg=bas.lm(logprice ~ .  + log.Surface:Shape 
+# PositionxDealer + LotxDealer
+# Artist LivingxBigShotPainter + ArtistLivingxPosition
+
+basg=bas.lm(logprice ~ .  + lot:dealer + artistliving:BigShotPainter + 
+              position:dealer + artistliving:position
 , data=data.train,
 prior="g-prior", a=nrow(data.train), modelprior=uniform(),
 method="MCMC", MCMC.iterations = 500000, thin = 20)
@@ -242,12 +285,7 @@ plot(basg)
 ## Plotting Confidence interval
 plot(confint(coef(basg, estimator = "HPM")))
 
-# Highest PRobability model
-HPM <- predict(basg, estimator = "HPM")
-variable.names(HPM)
-
 BPM <- predict(basg, estimator = "BPM")
-variable.names(BPM)
 
 x = confint(coef(basg, estimator = "BPM"))
 
@@ -272,12 +310,25 @@ image(basg)
 
 ```
 
+
 * Residual: must include residual plot(s) and a discussion.  
+```{r BAS Residual Plot}
+plot(basg, ask = F,which=1)
+```
+From the residual plot above, we can see that our the BMA model fits the data well. We have a constant residual with mean zero for different fitted prices. 
+
+
 * Variables: must include table of coefficients and CI
 ```{r Table of Variables and CI}
+## Plotting Confidence interval
+x = exp(confint(coef(basg, estimator = "BPM")))
+Variables = data_frame(variable = rownames(x), lwr = x[,1], Est = x[,3], upr = x[,2]) %>% 
+  filter(variable %in% variable.names(BPM))
 
+kable(Variables, digits = 2, align = 'c')
 
 ```
+
 
 
 
@@ -288,6 +339,16 @@ image(basg)
 What is the (median) price for the "baseline" category if there are categorical or dummy variables in the model (add CI's)?  (be sure to include units!) Highlight important findings and potential limitations of your model.  Does it appear that interactions are important?  What are the most important variables and/or interactions?  Provide interprations of how the most important variables influence the (median) price giving a range (CI).  Correct interpretation of coefficients for the log model desirable for full points.
 
 Provide recommendations for the art historian about features or combination of features to look for to find the most valuable paintings.
+
+From the exponentiated table of variables above, we can see that the "baseline" category has a median 144.61 Livres. Baseline in this case refers to the situation in which we are only looking at the term for intercept and, because of the nature of the data, the year of sale. It is worth noting that several of the year indicator variables are missing from this model and therefore, we can interpret 1764 and 1768 to be approximately equal when accounting for all other variables. 
+
+# interpreting the log 
+
+In our BMA model, our team includes the interaction of Shape and log.Surface.  However, we find that this our BMA does not include this interaction as the coefficient is zero. This could mean that the interactions are not important. 
+
+
+
+
 
 _Points will be deducted for code chunks that should not be included, etc._
 
@@ -415,14 +476,6 @@ save(predictions, file="predict-test.Rdata")
 
 ```
 
-```{r}
- # change model1 or update as needed
- # predictions = as.data.frame(
- #   exp(predict(model1, newdata=paintings_test,
- #               interval = "pred")))
- # save(predictions, file="predict-test.Rdata")
-
-```
 
 You will be able to see your scores on the score board.  They will be initialized by a prediction based on the mean in the training data.
 
