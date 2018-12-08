@@ -129,19 +129,19 @@ BigShotPainters = data %>% group_by(author) %>%
 ## Train data
 data.train = paintings_train %>% 
       mutate( # Painting physical features
-           Shape = ifelse(Shape=="squ_rect", 1, 0),
+           Shape = as.factor(ifelse(Shape=="squ_rect", 1, 0)),
            log.Surface = log(Surface),
            Height_in = coalesce(Height_in, Diam_in),
            Width_in = coalesce(Width_in, Diam_in),
            year = factor(year),
-           Nfigures = ifelse(nfigures>1, 1, 0),
-           Material = material %in% c("cuivre", "argent"),
-           position = ifelse(position>1, 1, position),
+           Nfigures = as.factor(ifelse(nfigures>1, 1, 0)),
+           Material = as.factor(material %in% c("cuivre", "argent")),
+           position = as.factor(ifelse(position>1, 1, position)),
            # Buyer Characteristics
-           High_Roller = ifelse(winningbidder %in% 
-                                  unlist(HighRollers), 1, 0),
-           BigShotPainter = ifelse(author %in% 
-                                  unlist(BigShotPainters), 1, 0),
+           High_Roller =as.factor(ifelse(winningbidder %in% 
+                                  unlist(HighRollers), 1, 0)),
+           BigShotPainter = as.factor(ifelse(author %in% 
+                                  unlist(BigShotPainters), 1, 0)),
            endbuyer = ifelse(endbuyer=="U"|winningbiddertype == "",
                                       "N",
                                       winningbiddertype) %>% 
@@ -152,9 +152,9 @@ data.train = paintings_train %>%
            winningbiddertype = ifelse(is.na(winningbiddertype)|winningbiddertype == "",
                                       "None",
                                       winningbiddertype) %>% as.factor(),
-           type_intermed = factor(ifelse(type_intermed=="", 
+           type_intermed = as.factor(ifelse(type_intermed=="", 
                                          "None",
-                                         type_intermed))%>% substr(.,1,1),
+                                         type_intermed)%>% substr(.,1,1)),
            school_pntg= ifelse(school_pntg %in% c("A","S","G","X"),
                                "other or unknown", school_pntg) %>% 
                                 as.factor(),
@@ -163,7 +163,9 @@ data.train = paintings_train %>%
            authorstyle=ifelse(authorstyle %in% c("m","g","o","al","co","pa"), 
                               "other", ifelse(authorstyle=="", "missing", 
                                               authorstyle)) %>% as.factor()
-) 
+      )
+cols <- c(names((data.train)[sapply(data.train, is.integer)]))
+data.train[,cols] <- lapply(data.train[,cols], factor)
 
 sum(is.na((data$lot %>% str_replace_all(., "lot", "") %>% as.numeric())))
 
