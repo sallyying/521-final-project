@@ -42,7 +42,7 @@ Another major challenge is the redundancy of some variables. For instance, the v
 ##2. Exploratory data analysis (10 points): must include three correctly labeled graphs and an explanation that highlight the most important features that went into your model building.
 
 #### Physical Features of Painting
-```{r Physical Features, message=FALSE}
+```{r Physical Features, message=FALSE, echo=FALSE}
 # Shape and Surface
 plot1 = ggplot(data = paintings_train, 
                aes(x = Surface, y = logprice,
@@ -79,7 +79,7 @@ The plots above show several variables that become increasingly sparse as the va
 We also see from these plots that the dealer, regardless of the variable on the x axis, seems to stratify the price of the painting fairly neatly. Additionally, we can see from the plot with surface that nearly all the paintings are squares or rectangles. 
 
 #### Painter Characteristics
-```{r Few Tables}
+```{r Few Tables, echo=FALSE}
 ggplot (data = paintings_train, 
                 aes(x = school_pntg, y = logprice, color = factor(artistliving)))+
                 geom_jitter() + ggtitle("Artist Features and Log Price")
@@ -95,7 +95,7 @@ Looking at the plots for binary (integer) predictors, we are looking to identify
 
 
 #### Yearly Effects
-```{r Sales by Dealer and Year}
+```{r Sales by Dealer and Year, echo=FALSE}
 
 ggplot(data = paintings_train, aes(x = factor(year), y = logprice, color = dealer)) + 
   geom_jitter() + ggtitle("Sales by Dealer and Year") + xlab("Year")
@@ -109,7 +109,7 @@ Another key takeaway from this is that some dealers were particularly active for
 ##3. Development and assessment of an initial model (10 points)
 
 * Initial model: must include a summary table and an explanation/discussion for variable selection and overall amount of variation explained. 
-```{r Format Data}
+```{r Format Data, echo=FALSE}
 # Formatting for some variables
 # Top 10 bidders
 data = paintings_train
@@ -217,7 +217,7 @@ In order to reduce the variables to only those that had a significant impact on 
 
 Step 1 involved running 2 stepwise BIC regressions on logprice using 2 different sets of variables and all possible 2 way interactions for each set. The first set of variables included the painting's physical characteristics such as size, shape, number of figures and material. The second set of variables used terms that were related to the bid such as HighRoller, type_intermed and position. The resulting interaction terms were used in the final BAS model where running a two-way interaction for every variable in our training dataset was infeasible. 
 
-```{r BIC, warning = FALSE, message = FALSE}
+```{r BIC, warning = FALSE, message = FALSE, echo=FALSE}
 # Physical characteristics
 model1.physical = lm(logprice ~ (Shape + log.Surface+ Height_in+ Width_in+ artistliving+
           + BigShotPainter+ Nfigures+ Material+ position+ 
@@ -242,7 +242,7 @@ summary(model3.bidding)
 
 The BIC stepwise regressions in the first step gave 4 fairly intuitive interactions that were used as predictors in this step- lot:dealer, artistliving:BigShotPainter, position:dealer, artistliving:position. Interestingly, in neither the Best Predictive Model (BPM) nor the Highest Probability Model (HPM) did we observe the interaction terms from the previous step. However, this iteration yielded exactly 20 unique variables for the final model. 
 
-```{r BAS warning = FALSE, message = FALSE}
+```{r BAS warning = FALSE, message = FALSE, echo=FALSE}
 library(BAS)
 set.seed(9)
 # PositionxDealer + LotxDealer
@@ -285,14 +285,14 @@ ggplot(data = Plot.df, aes(x = Variable, y = Estimate, color = factor(In.Zero)))
 
 
 * Residual: must include residual plot(s) and a discussion.  
-```{r BAS Residual Plot}
+```{r BAS Residual Plot, echo=FALSE}
 plot(basg, ask = F,which=1)
 ```
 From the residual plot above, we can see that our the BMA model fits the data well. We have a constant residual with mean zero for different fitted prices. 
 
 
 * Variables: must include table of coefficients and CI
-```{r Table of Variables and CI}
+```{r Table of Variables and CI, echo=FALSE}
 ## Plotting Confidence interval
 x = exp(confint(coef(basg, estimator = "BPM")))
 Variables = data_frame(variable = rownames(x), lwr = x[,1], Est = x[,3], upr = x[,2]) %>% 
