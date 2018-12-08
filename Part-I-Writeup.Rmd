@@ -26,7 +26,7 @@ set.seed(9)
 
 ##1. Introduction: Summary of problem and objectives (5 points)
 
-We are tasked with identifying the relevant variables for predicting the cost of a painting for a few years in teh 18th century. In addition to gaining insight on these variables, we are also interested in generating a prediction to identify paintings that may have been overvalued or undervalued given a set of predictors. There are many factors that drive the prices of paintings. Our team wants to find the intrinsic value of paintings then we can judge whether each specific painting on the market has been overvalued or undervalued. In our project, we foucs on the variable selection and tries to detect which variables tend to be informative.
+We are tasked with identifying the relevant variables for predicting the cost of a painting for a few years in the 18th century. In addition to gaining insight on these variables, we are also interested in generating a prediction to identify paintings that may have been overvalued or undervalued given a set of predictors. There are many factors that drive the prices of paintings. Our team wants to find the intrinsic value of paintings then we can judge whether each specific painting on the market has been overvalued or undervalued. In our project, we focus on the variable selection and tries to detect which variables tend to be informative.
 
 
 Initial inspection of the data revealed that it contained 59 variables: 2 outcomes (price and logprice) and 56 predictors. These predictors fit into several relatively well-defined categories: \
@@ -41,7 +41,7 @@ Another major challenge is the redundancy of some variables. For instance, the v
 
 ##2. Exploratory data analysis (10 points): must include three correctly labeled graphs and an explanation that highlight the most important features that went into your model building.
 
-### Physical Features of Painting
+#### Physical Features of Painting
 ```{r Physical Features, message=FALSE}
 # Shape and Surface
 plot1 = ggplot(data = paintings_train, 
@@ -78,7 +78,7 @@ The plots above show several variables that become increasingly sparse as the va
 
 We also see from these plots that the dealer, regardless of the variable on the x axis, seems to stratify the price of the painting fairly neatly. Additionally, we can see from the plot with surface that nearly all the paintings are squares or rectangles. 
 
-
+#### Painter Characteristics
 ```{r Few Tables}
 ggplot (data = paintings_train, 
                 aes(x = school_pntg, y = logprice, color = factor(artistliving)))+
@@ -94,40 +94,16 @@ From the plot, we can see that "authorstandard" and "school_pntg" may have impac
 Looking at the plots for binary (integer) predictors, we are looking to identify whether a value of 1 or 0 for a variable changes how it is distributed across logprice. But the plots don't look obvious enough to tell the relationships.
 
 
-## Include chart by year and material type
-```{r Reducing the Names}
-HighRollers = paintings_train %>% group_by(winningbidder) %>% 
-              summarize(count = n(), avg.spend = mean(logprice)/mean(paintings_train$logprice)) %>% 
-              filter(count>10) %>% arrange(desc(avg.spend)) %>% head(10) %>%
-              select(winningbidder) %>%
-              head(10) %>% as.list
+#### Yearly Effects
+```{r Sales by Dealer and Year}
 
-# Top 5 Pricey Painters
-BigShotPainters = paintings_train %>% group_by(author) %>% 
-              summarize(count = n(), avg.haul = mean(logprice)/mean(paintings_train$logprice)) %>% 
-              filter(count>10) %>% arrange(desc(avg.haul)) %>%
-              select(author) %>%
-              head(5) %>% as.list
-plot.df = paintings_train %>% 
-      mutate(
-           High_Roller = ifelse(winningbidder %in% 
-                                  unlist(HighRollers), 1, 0),
-           BigShotPainter = ifelse(author %in% 
-                                  unlist(BigShotPainters), 1, 0)
-      ) 
-
-plot1 = ggplot(data = plot.df, 
-               aes(x = High_Roller, y = logprice, color = factor(High_Roller)))+
-                geom_boxplot() + ggtitle("High Rollers and Log Price")
-
-plot2 = ggplot(data = plot.df, 
-                aes(x = BigShotPainter, y = logprice, color = factor(BigShotPainter)))+
-                geom_boxplot() + ggtitle("Big-shot Painters and Log Price") 
-gridExtra::grid.arrange(plot1, plot2, nrow = 1)
+ggplot(data = paintings_train, aes(x = factor(year), y = logprice, color = dealer)) + 
+  geom_jitter() + ggtitle("Sales by Dealer and Year") + xlab("Year")
 
 ```
-Our team finds that type R delaler almost dominates the paintings before year 1776. Type P deal becomes more frequently active from year 1775.
+The visualization above shows that the effect of hear on the median sale price does not appear to be linear. Without taking dealer into account yet, it seems that some years have very little activity and others are densely populated. From this visualization, it seems clear year should be interpreted as a factor given the information we have at our disposal. It is worth considering that the relative activity or inactivity may be due to other economic factors for which we do not have data. 
 
+Another key takeaway from this is that some dealers were particularly active for some years, but relatively inactive for others. Without much subject area expertise, it is difficult to develop some intuition for why this may be happening. While this may initially suggest that an interaction term is useful, it should be noted that there are some years in which dealers are totally inactive which could seriously hinder the interpretability of the coefficients for the inactive years. 
 
 
 ##3. Development and assessment of an initial model (10 points)
@@ -272,7 +248,7 @@ set.seed(9)
 # PositionxDealer + LotxDealer
 # Artist LivingxBigShotPainter + ArtistLivingxPosition
 
-basg=bas.lm(logprice ~ .  + lot:dealer + artistliving:BigShotPainter + 
+basg=bas.lm(logprice ~ . + lot:dealer + artistliving:BigShotPainter + 
               position:dealer + artistliving:position
 , data=data.train,
 prior="g-prior", a=nrow(data.train), modelprior=uniform(),
@@ -297,15 +273,12 @@ Plot.df = data_frame(Variable = attr(x, "dimnames")[[1]],
 
 ggplot(data = Plot.df, aes(x = Variable, y = Estimate, color = factor(In.Zero)))+ 
   geom_point() +
-  geom_errorbar(aes(ymin = Lower, ymax = Upper))
-
-ggplot(data = Plot.df%>%filter(abs(Estimate)>.1), 
-       aes(x = Variable, y = Estimate, color = factor(In.Zero)))+ geom_point() +
-       geom_errorbar(aes(ymin = Lower, ymax = Upper)) + 
-       theme(axis.text.x=element_text(angle=90, hjust=1))
+  geom_errorbar(aes(ymin = Lower, ymax = Upper))+ 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
 
-image(basg)
+
+# image(basg)
 
 
 ```
@@ -342,9 +315,14 @@ Provide recommendations for the art historian about features or combination of f
 
 From the exponentiated table of variables above, we can see that the "baseline" category has a median 144.61 Livres. Baseline in this case refers to the situation in which we are only looking at the term for intercept and, because of the nature of the data, the year of sale. It is worth noting that several of the year indicator variables are missing from this model and therefore, we can interpret 1764 and 1768 to be approximately equal when accounting for all other variables. 
 
-# interpreting the log 
+One thing that should be noted is that because the model predicts log price, these effects in the table should not be interpreted as additive. In other words, we cannot say, as we would with a traditional OLS regression, that a 1 unit increase in variable $p$ leads to a $\beta_p$ increase/decrease in the outcome variable. nterpreting the log surface and interpreting the non-logged variables
 
-In our BMA model, our team includes the interaction of Shape and log.Surface.  However, we find that this our BMA does not include this interaction as the coefficient is zero. This could mean that the interactions are not important. 
+
+Important findings
+
+Limitations  Extrapolation is extremely difficult because many of these predictors are categorical - a lot of these are categorical and some of these categories are sparsely populated
+- year variable - cannot extrapolate by year... they are very different
+- regional variable
 
 
 
@@ -356,15 +334,6 @@ _Points will be deducted for code chunks that should not be included, etc._
 
 ###  Evaluation on test data for Part I
 
-Once your write up is submitted, your models will be evaluated on the following criteria based on predictions  on the test data (20 points): 
-
-* Bias:  Average (Yhat-Y)  positive values indicate the model tends to overestimate price (on average) while negative values indicate the model tends to underestimate price.
-* Maximum Deviation:  Max |Y-Yhat| -  identifies the worst prediction  made in the validation data set.
-* Mean Absolute Deviation:  Average |Y-Yhat| - the average error (regardless of sign).
-* Root Mean Square Error: Sqrt Average (Y-Yhat)^2
-* Coverage:  Average( lwr < Y < upr) 
-
-In order to have a passing wercker badge, your file for predictions needs to be the same length as the test data, with three columns:  fitted values, lower CI and upper CI values in that order with names, *fit*, *lwr*, and *upr* respectively such as in the code chunk below. 
 
 Save predictions and intervals.  
 ```{r predict-model-final, echo=FALSE, include=FALSE}
@@ -446,9 +415,8 @@ data.test = data.test%>%
           history, allegory, pastorale, other) %>% mutate(logprice = 0)
 library(mice)
 
-imputed_Data <- mice(data.test, m=5, maxit = 50, method = 'pmm', seed = 9)
+imputed_Data <- mice(data.test, m=10, maxit = 100, method = 'pmm', seed = 9)
 
-dim(na.omit(imputed_Data))
 completeData <- complete(imputed_Data,2)
 completeData[which(is.na(data.test$log.Surface)),]$log.Surface = 
   mean(na.omit(data.test)$log.Surface, na.rm=TRUE)
@@ -475,7 +443,4 @@ predictions = data.frame(fit = exp(preds[,1]), lwr = exp(preds[,2]), upr = exp(p
 save(predictions, file="predict-test.Rdata")
 
 ```
-
-
-You will be able to see your scores on the score board.  They will be initialized by a prediction based on the mean in the training data.
 
