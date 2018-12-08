@@ -189,7 +189,7 @@ table3=data.train %>% group_by(artistliving) %>%
   arrange(desc(avg.spend))
 #reduce factor levels for three varaibles
 data.train$school_pntg[data$school_pntg %in% c("A","S","G","X")] <- "other or unknown" %>% as.factor
-data.train$authorstandard<- ifelse(data.train$authorstandard  %in% table1$authorstandard, 1, 0)
+data.train$authorstandard<- as.factor(ifelse(data.train$authorstandard  %in% table1$authorstandard, 1, 0))
 # levels(data.train$authorstyle) <- c(levels(data.train$authorstyle), "other","missing") 
 # data.train$authorstyle[data.train$authorstyle %in% c("m","g","o","al","co","pa")] <- "other" 
 # data.train$authorstyle[data.train$authorstyle %in% c("")] <- "missing" 
