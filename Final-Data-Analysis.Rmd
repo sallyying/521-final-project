@@ -460,6 +460,50 @@ lasso.coverage = In.Interval(lower = lasso.predictions$lower,
 
 ```
 
+```{r}
+library(BART); set.seed(4)
+ytrain=data.train[1];
+xtrain=data.train[-1];
+
+mse=0;
+for (i in seq(1,1301,by=100))
+{
+  testind=seq(i,i+99,by=1)
+  datatey=bartModelMatrix(ytrain[testind,]);
+  datatex=bartModelMatrix(xtrain[testind,]);
+  datatrx=bartModelMatrix(xtrain[-testind,]);
+  datatry=bartModelMatrix(ytrain[-testind,]);
+  bart5=mc.wbart(x.train=datatrx, y.train=datatry,x.test=datatex,printevery=100);
+  mse=mse+sum((exp(bart5$yhat.test.mean)-exp(datatey))^2)/length(bart5$yhat.test.mean)/14;
+  print(mse)
+}
+rmse=(mse)^(1/2)
+
+
+
+mse=0;
+for (i in seq(1,1301,by=100))
+{
+  testind=seq(i,i+99,by=1)
+  datatey=bartModelMatrix(ytrain[testind,]);
+  datatex=bartModelMatrix(xtrain[testind,]);
+  datatrx=bartModelMatrix(xtrain[-testind,]);
+  datatry=bartModelMatrix(ytrain[-testind,]);
+  bart5=wbart(x.train=datatrx, y.train=datatry,x.test=datatex,printevery=100);
+  mse=mse+sum((exp(bart5$yhat.test.mean)-exp(datatey))^2)/length(bart5$yhat.test.mean)/14;
+  print(mse)
+}
+rmse=(mse)^(1/2)
+
+#BART for multinomial outcomes with Normal latents
+#bart1 =mbart(x.train=xtrain, y.train=ytrain,type='pbart');
+#BART for continuous outcomes with parallel computation
+#bart2= mc.wbart(x.train=xtrain, y.train=ytrain);
+#bart3= rs.pbart(x.train=xtrain, y.train=ytrain);
+#bart4= wbart(x.train=xtrain, y.train=ytrain);
+```
+
+
 ### Build your first model
 
 In the first model predict the auction price `price` using the transformation `logprice` using at least 10 and up to 20 predictors and any interactions to build a model using linear regression.  You may use stepwise model selection to simplify the model using AIC and/or BIC.  For reference, we will fit the null model to initialize the leaderboard, but replace model1 with your recommended model.
