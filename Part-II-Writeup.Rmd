@@ -5,7 +5,15 @@ date: "12/8/2018"
 output: html_document
 ---
 
-
+```{r setup, include=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(ggplot2) 
+library(glmnet)
+library(knitr)
+```
 ### Part II: Write Up
 
 Once you are satisfied with your model, provide a write up of your data analysis project in a new Rmd file/pdf file: `Part-II-Writeup.Rmd` by copying over salient parts of your R notebook and the previous writeup (you should also save the pdf version) The written assignment consists of five parts:
