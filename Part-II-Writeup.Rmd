@@ -230,100 +230,71 @@ data.train.features = data.train %>% select(logprice, relig, landsALL, lands_sc,
 
 ```
 
+```{r MixedPCA}
+install.packages('PCAmixdata')
+library(PCAmixdata)
+PCA.df = lapply(data.train.features%>%select(-logprice), function(x) as.factor(x)) %>% as.data.frame()
+
+PCA = PCAmix(X.quali = PCA.df, ndim = 15, rename.level = TRUE,
+  weight.col.quanti = NULL, weight.col.quali = NULL, graph = TRUE)
+
+str(PCA)
+```
+
+```{r 3D Scatterplot with 2 PCs}
+library(scatterplot3d)
+
+dims = data_frame(Dim1 = PCA$scores.stand[,1], Dim2 = PCA$scores.stand[,2], logprice = data.train.features[,1]) %>% filter(Dim1<10 & Dim2<10)
+
+# 3D Scatter
+scatterplot3d(x = dims$Dim1, y = dims$Dim2, z = dims$logprice, pch = 16, angle = 200)
+
+library(plotly)
+p <- plot_ly(dims, x = ~Dim1, y = ~Dim2, z = ~logprice) %>%
+  add_markers() %>%
+  layout(scene = list(xaxis = list(title = 'Dim1'),
+                     yaxis = list(title = 'Dim2'),
+                     zaxis = list(title = 'LogPrice')))
+
+p
+```
 
 ```{r Random Forest}
 library(randomForest)
-
-test.forest = randomForest(logprice~., data = data.train.features) 
+test.forest = randomForest(logprice~., data = data.train.features)  # Seeing how this does with the whole dataset
 varImpPlot(test.forest)
 
-
+# Strange words at the top of the list...
 ID.list = data.train.desc %>% ungroup() %>% filter(str_detect(tolower(subject), "paysage")) %>% select(ID) %>% as.list
-ID.list
 #Tableaux??
 data.train[ID.list$ID,c("subject","landsALL")] %>% View
 
 ```
 
-```{r}
+```{r Random Forest - Reduced Data}
+# Create Dataset
+RMSE = function(est, obs) return(sqrt(mean((est-obs)^2)))
 
-library(sparklyr)
-library(dplyr)
-library(ggplot2)
-library(stringr)
+reduced.forest.data = as_tibble(PCA$scores.stand) %>% mutate(logprice = data.train.features$logprice)
+colnames(reduced.forest.data) = str_replace_all(colnames(reduced.forest.data), " ", "")
 
+reduced.forest = randomForest(logprice~., data = reduced.forest.data)  # Seeing how this does with the whole dataset
+varImpPlot(reduced.forest)
 
-sc = spark_connect(master = "local[8]", 
-                   spark_home = "/data/spark/spark-2.3.2-bin-hadoop2.7/")
+predictions = data_frame(logprice = data.train.features$logprice, full.pred = predict(test.forest, data.train.features), reduced.pred = predict(reduced.forest, reduced.forest.data))
 
-## Text Data
+ggplot(predictions, aes(x = reduced.pred-logprice, y = full.pred-logprice)) + geom_point() + geom_abline(slope = 1, intercept = 0)
 
-### Shakespeare
-
-hamlet = readLines("/data/shakespeare/hamlet.txt")
-
-hamlet %>%
-  data_frame(line = .) %>%
-  mutate(
-    line = tolower(line) %>%
-      str_replace_all("[^a-z ]", "")
-  ) %>%
-  transmute(
-    word = str_split(line," ")
-  ) %>%
-  tidyr::unnest() %>%
-  filter(word != "") %>% 
-  anti_join(tidytext::stop_words) %>%
-  count(word) %>%
-  arrange(desc(n))
-
-hamlet %>%
-  data_frame(line = .) %>%
-  tidytext::unnest_tokens(line, word)
-
-?tidytext
-library(tidytext)
-install.packages('tidytext')
-?tidytext::stop_words
-
-hamlet_sp = spark_read_text(sc, "hamlet", "/data/shakespeare/hamlet.txt")
-
-hamlet_sp %>%
-  mutate(
-    line = lower(line) %>% regexp_replace("[^a-z ]", "")
-  ) %>%
-  ft_tokenizer("line", "words") %>%
-  ft_stop_words_remover("words", "word") %>%
-  transmute(
-    word = explode(word)
-  ) %>%
-  filter(word != "") %>%
-  count(word) %>%
-  arrange(desc(n))
-  
-  
-spark_read_text(sc, "hamlet", "/data/shakespeare/*.txt") %>%
-  mutate(
-    line = lower(line) %>% regexp_replace("[^a-z ]", "")
-  ) %>%
-  ft_tokenizer("line", "words") %>%
-  ft_stop_words_remover("words", "word") %>%
-  transmute(
-    word = explode(word)
-  ) %>%
-  filter(word != "") %>%
-  count(word) %>%
-  arrange(desc(n))
-
-library(jsonlite)
-
-test = fromJSON("https://data.cityofchicago.org/resource/8v9j-bter.json")
-
-str(test)
-
-library(tidyr)
-str(test)  
+RMSE(exp(predictions$reduced.pred), exp(predictions$logprice))
+RMSE(exp(predictions$full.pred), exp(predictions$logprice))
 
 ```
 
+```{r Imputing Missing Data}
+
+
+
+
+
+```
 
