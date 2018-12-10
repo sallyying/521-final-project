@@ -1,6 +1,6 @@
 ---
 title: "Part-II-Writeup"
-author: "Brian Cozzi"
+author: "Brian Cozzi, Zhaolin Ying, Wei Zhang"
 date: "12/8/2018"
 output: html_document
 ---
@@ -377,7 +377,54 @@ str(pred.data)
 str(data.train.features2)
 
 ```
+```{r}
+install.packages("h2o")
+library(h2o)
+h2o.init()
+```
 
+```{r boosting gbm}
+rmse = function(obs, pred) { sqrt(sum((obs - pred)^2)/length(obs))}
+mse=function(obs, pred){sum((obs - pred)^2)/length(obs)}
+data.trainh2o = as.h2o(data.train)
+#summary(data.trainh2o)
+
+# split into train, test  
+splits <- h2o.splitFrame(data = data.trainh2o, 
+                         ratios = 0.7,  
+                         seed = 9)  
+train <- splits[[1]]
+test <- splits[[2]]
+
+y <- "logprice"
+x <- setdiff(names(train), y)
+#interactions?
+nfolds=5
+Mse=0
+for (i in seq(1,1301,by=100))
+{
+  testind=seq(i,i+99,by=1)
+  datate=data.trainh2o[testind,]
+  datatr=data.trainh2o[-testind,]
+  gbm_fit <- h2o.gbm(y = y, x=x,
+                  training_frame = datatr,
+                  distribution = "AUTO",
+                  model_id = "gbm_fit2",
+                  ntrees = 100,
+                  #max_depth = 4,
+                  #min_rows = 2,
+                  # learn_rate = 0.2,
+                  nfolds = nfolds,
+                  fold_assignment = "Modulo",
+                  keep_cross_validation_predictions = TRUE,
+                  seed = 9)
+  Mse=Mse+mse(exp(h2o.predict(gbm_fit,newdata = datate[,-1])),exp(datate$logprice))
+}
+  gbmrmse=sqrt(Mse)
+
+gbmy=h2o.predict(gbm_fit,newdata = test[,-1])
+rmse(exp(gbmy),exp(test$logprice))
+```
 
 ```{r Imputing Missing Data}
 
