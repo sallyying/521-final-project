@@ -14,6 +14,12 @@ library(ggplot2)
 library(glmnet)
 library(knitr)
 ```
+
+```{r read-data, echo=FALSE, message=FALSE}
+load("paintings_train.Rdata")
+load("paintings_test.Rdata")
+set.seed(9)
+```
 ### Part II: Write Up
 
 Once you are satisfied with your model, provide a write up of your data analysis project in a new Rmd file/pdf file: `Part-II-Writeup.Rmd` by copying over salient parts of your R notebook and the previous writeup (you should also save the pdf version) The written assignment consists of five parts:
