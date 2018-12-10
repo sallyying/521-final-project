@@ -5,13 +5,29 @@ date: "12/8/2018"
 output: html_document
 ---
 
+<<<<<<< HEAD
 ```{r read-data, include=FALSE, message=FALSE}
 load("paintings_train.Rdata")
 load("paintings_test.Rdata")
 load("paintings_validation.Rdata")
 set.seed(9)
+=======
+```{r setup, include=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(ggplot2) 
+library(glmnet)
+library(knitr)
+>>>>>>> ffec0a542a9441748fb073951986d72f6ba80dd3
 ```
 
+```{r read-data, echo=FALSE, message=FALSE}
+load("paintings_train.Rdata")
+load("paintings_test.Rdata")
+set.seed(9)
+```
 ### Part II: Write Up
 
 Once you are satisfied with your model, provide a write up of your data analysis project in a new Rmd file/pdf file: `Part-II-Writeup.Rmd` by copying over salient parts of your R notebook and the previous writeup (you should also save the pdf version) The written assignment consists of five parts:
