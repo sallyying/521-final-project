@@ -1,10 +1,16 @@
 ---
 title: "Part-II-Writeup"
-author: "Brian Cozzi"
+author: "Brian Cozzi, Zhaolin Ying, Wei Zhang"
 date: "12/8/2018"
 output: html_document
 ---
 
+```{r read-data, include=FALSE, message=FALSE}
+load("paintings_train.Rdata")
+load("paintings_test.Rdata")
+load("paintings_validation.Rdata")
+set.seed(9)
+```
 
 ### Part II: Write Up
 
@@ -184,7 +190,9 @@ format.data = function(paintings_train){
   
   return(data.train)
 }
-test = format.data(paintings_test)
+data.train = format.data(paintings_train)
+data.test = format.data(paintings_test)
+data.val = format.data(paintings_validation)
 
 ```
 
@@ -204,7 +212,7 @@ format.subject = function(data.train){
     mutate(subject = str_replace_all(subject, "\\/", "")) %>% group_by(ID, subject) %>%
     filter(subject != "") %>% anti_join(data_frame(subject = stopwords(kind="french"))) 
   
-  print(dim(data.train.desc))
+  # print(dim(data.train.desc))
   ## Taking a look at the top words
   # data.train %>% select(-subject) %>%
   #   mutate(ID = row_number()) %>% inner_join(data.train.desc) %>%
@@ -226,19 +234,53 @@ format.subject = function(data.train){
   return(data.train.subject)
 }
 data.train.subject = format.subject(data.train)
+data.test.subject = format.subject(data.test)
+data.val.subject = format.subject(data.val)
+
+# Find columns common to both
+cols = data_frame(col = colnames(data.train.subject)) %>% inner_join(data_frame(col = colnames(data.val.subject))) 
 
 # Some of these words are only used once... let's set the threshold to .5%
-keepers = which(apply(data.train.subject,2,mean)>.005)
+keepers = data_frame(col = colnames(data.train.subject)[which(apply(data.train.subject,2,mean)>.005)]) %>% inner_join(cols) %>% as.list()
 
 data.train.features = data.train %>% select(logprice, relig, landsALL, lands_sc, lands_elem, lands_figs, 
                                             lands_ment, arch,mytho, peasant, othgenre, singlefig, 
                                             portrait, still_life, discauth, history,allegory, 
                                             pastorale, other) %>% mutate(ID = row_number()) %>%
-  inner_join(data.train.subject[,keepers], by = "ID") %>% select(-ID)
+  inner_join(data.train.subject[,keepers$col], by = "ID") #%>% select(-ID)
 
+pred.data = data.train %>% select(Shape, log.Surface, Height_in, Width_in, year, artistliving,
+          lot, position, dealer, origin_author, origin_cat, school_pntg,
+          diff_origin, authorstyle, Material, High_Roller, High_Roller.name, 
+         BigShotPainter, BigShotPainter.name, #authorstandard,author,
+           winningbiddertype, endbuyer, type_intermed, #Interm,
+           engraved, original, prevcoll, othartist, paired, figures, finished,
+          lrgfont) %>% mutate(ID = row_number()) %>% #filter(ID %in% IDs)
+  inner_join(data.train.features, by = "ID") %>% na.omit() %>% select(-ID)
 
+pred.data = unclass(pred.data) %>% as.data.frame()
+
+data.val.features = data.val %>% select(logprice, relig, landsALL, lands_sc, lands_elem, lands_figs, 
+                                            lands_ment, arch,mytho, peasant, othgenre, singlefig, 
+                                            portrait, still_life, discauth, history,allegory, 
+                                            pastorale, other) %>% mutate(ID = row_number()) %>%
+  inner_join(data.val.subject[,keepers$col], by = "ID") # %>% select(-ID)
+
+pred.data.val = data.val %>% select(Shape, log.Surface, Height_in, Width_in, year, artistliving,
+          lot, position, dealer, origin_author, origin_cat, school_pntg,
+          diff_origin, authorstyle, Material, High_Roller, High_Roller.name, 
+         BigShotPainter, BigShotPainter.name, #authorstandard,author,
+           winningbiddertype, endbuyer, type_intermed, #Interm,
+           engraved, original, prevcoll, othartist, paired, figures, finished,
+          lrgfont) %>% mutate(ID = row_number()) %>% #filter(ID %in% IDs)
+  inner_join(data.train.features, by = "ID") %>% na.omit() %>% select(-ID)
+
+pred.data.val = unclass(pred.data.val) %>% as.data.frame()
 
 ```
+
+
+
 
 ```{r MixedPCA}
 # install.packages('PCAmixdata')
@@ -313,7 +355,7 @@ data.train.features2 = data.train %>% select(logprice, relig, landsALL, lands_sc
                                             lands_ment, arch,mytho, peasant, othgenre, singlefig, 
                                             portrait, still_life, discauth, history,allegory, 
                                             pastorale, other) %>% mutate(ID = row_number()) %>%
-  inner_join(data.train.subject[,keepers], by = "ID")
+  inner_join(data.train.subject[,keepers$col], by = "ID")
 
 pred.data = data.train %>% select(Shape, log.Surface, Height_in, Width_in, year, artistliving,
           lot, position, dealer, origin_author, origin_cat, school_pntg,
@@ -359,7 +401,6 @@ barksample = bark(as.matrix(pred.data[train, -1]), pred.data[train, 1],
                               x.test = as.matrix(pred.data[-train, -1]),
                     classification = FALSE,
                     type="se")
-
 apply(paintings_train, 2, class)
 
 ```
@@ -399,15 +440,61 @@ summary(test.pc)
 
 ```
 
+
 ```{r Random Forest}
 library(randomForest)
 test.forest = randomForest(logprice~., data = data.train.features)  # Seeing how this does with the whole dataset
 varImpPlot(test.forest)
+```
 
-# Strange words at the top of the list...
-ID.list = data.train.desc %>% ungroup() %>% filter(str_detect(tolower(subject), "paysage")) %>% select(ID) %>% as.list
-#Tableaux??
-# data.train[ID.list$ID,c("subject","landsALL")] %>% View
+
+```{r}
+install.packages("h2o")
+library(h2o)
+h2o.init()
+```
+
+```{r boosting gbm}
+rmse = function(obs, pred) { sqrt(sum((obs - pred)^2)/length(obs))}
+mse=function(obs, pred){sum((obs - pred)^2)/length(obs)}
+data.trainh2o = as.h2o(data.train)
+#summary(data.trainh2o)
+
+# split into train, test  
+splits <- h2o.splitFrame(data = data.trainh2o, 
+                         ratios = 0.7,  
+                         seed = 9)  
+train <- splits[[1]]
+test <- splits[[2]]
+
+y <- "logprice"
+x <- setdiff(names(train), y)
+#interactions?
+nfolds=5
+Mse=0
+for (i in seq(1,1301,by=100))
+{
+  testind=seq(i,i+99,by=1)
+  datate=data.trainh2o[testind,]
+  datatr=data.trainh2o[-testind,]
+  gbm_fit <- h2o.gbm(y = y, x=x,
+                  training_frame = datatr,
+                  distribution = "AUTO",
+                  model_id = "gbm_fit2",
+                  ntrees = 100,
+                  #max_depth = 4,
+                  #min_rows = 2,
+                  # learn_rate = 0.2,
+                  nfolds = nfolds,
+                  fold_assignment = "Modulo",
+                  keep_cross_validation_predictions = TRUE,
+                  seed = 9)
+  Mse=Mse+mse(exp(h2o.predict(gbm_fit,newdata = datate[,-1])),exp(datate$logprice))
+}
+  gbmrmse=sqrt(Mse)
+
+gbmy=h2o.predict(gbm_fit,newdata = test[,-1])
+rmse(exp(gbmy),exp(test$logprice))
 
 ```
 
