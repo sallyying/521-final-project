@@ -111,6 +111,7 @@ Discuss performance based on leader board results and suggested refinements.
 ```{r Format Data}
 # Formatting for some variables
 # Top 10 bidders
+
 data = paintings_train
 HighRollers = data %>% group_by(winningbidder) %>% 
               summarize(count = n(), avg.spend = mean(logprice)/mean(data$logprice)) %>% 
@@ -125,61 +126,65 @@ BigShotPainters = data %>% group_by(authorstandard) %>%
               select(authorstandard) %>%
               head(10) %>% as.list
 
-## Train data
-data.train = paintings_train %>% 
-      mutate( # Painting physical features
-           Shape = ifelse(Shape=="squ_rect", 1, 0),
-           log.Surface = log(Surface),
-           Height_in = coalesce(Height_in, Diam_in),
-           Width_in = coalesce(Width_in, Diam_in),
-           year = factor(year),
-           Nfigures = ifelse(nfigures>1, 1, 0),
-           Material = material %in% c("cuivre", "argent"),
-           position = ifelse(position>1, 1, position),
-           # Buyer Characteristics
-           High_Roller = ifelse(winningbidder %in% 
-                                  unlist(HighRollers), 1, 0),
-           High_Roller.name = ifelse(winningbidder %in% 
-                                  unlist(HighRollers), winningbidder, "Cheap"),
-           BigShotPainter = ifelse(authorstandard %in% 
-                                  unlist(BigShotPainters), 1, 0),
-           BigShotPainter.name = ifelse(authorstandard %in% 
-                                  unlist(BigShotPainters), authorstandard, "Hack"),
-           endbuyer = ifelse(endbuyer=="U"|winningbiddertype == "",
-                                      "N",
-                                      winningbiddertype) %>% 
-                                  substr(.,1,1) %>% as.factor(), 
-           dealer = factor(dealer),
-           lot = str_replace_all(lot, "lot", "")%>% as.numeric(),
-           origin_author = factor(origin_author),
-           winningbiddertype = ifelse(is.na(winningbiddertype)|winningbiddertype == "",
-                                      "None",
-                                      winningbiddertype) %>% as.factor(),
-           type_intermed = factor(ifelse(type_intermed=="", 
-                                         "None",
-                                         type_intermed))%>% substr(.,1,1),
-           school_pntg= ifelse(school_pntg %in% c("A","S","G","X"),
-                               "other or unknown", school_pntg) %>% 
-                                as.factor(),
-           # authorstandard=as.factor(authorstandard), 
-           artistliving=as.factor(artistliving),
-           authorstyle=ifelse(authorstyle %in% c("m","g","o","al","co","pa"), 
-                              "other", ifelse(authorstyle=="", "missing", 
-                                              authorstyle)) %>% as.factor()
-) 
-# Selecting all the relevant variables for final table
-data.train = data.train%>% 
-  select(logprice, Shape, log.Surface, Height_in, Width_in, year, artistliving,
-          lot, position, dealer, origin_author, origin_cat, school_pntg,
-          diff_origin, authorstyle, Material, High_Roller, High_Roller.name, 
-         BigShotPainter, BigShotPainter.name, #authorstandard,
-          author, winningbiddertype, endbuyer, Interm, type_intermed,
-           engraved, original, prevcoll, othartist, paired, figures, finished,
-          lrgfont, subject,
-          ## Painting Features
-          relig, landsALL, lands_sc, lands_elem, lands_figs, lands_ment, arch,
-          mytho, peasant, othgenre, singlefig, portrait, still_life, discauth, history,
-          allegory, pastorale, other )
+format.data = function(paintings_train){
+  data.train = paintings_train %>% 
+        mutate( # Painting physical features
+             Shape = ifelse(Shape=="squ_rect", 1, 0),
+             log.Surface = log(Surface),
+             Height_in = coalesce(Height_in, Diam_in),
+             Width_in = coalesce(Width_in, Diam_in),
+             year = factor(year),
+             Nfigures = ifelse(nfigures>1, 1, 0),
+             Material = material %in% c("cuivre", "argent"),
+             position = ifelse(position>1, 1, position),
+             # Buyer Characteristics
+             High_Roller = ifelse(winningbidder %in% 
+                                    unlist(HighRollers), 1, 0),
+             High_Roller.name = ifelse(winningbidder %in% 
+                                    unlist(HighRollers), winningbidder, "Cheap"),
+             BigShotPainter = ifelse(authorstandard %in% 
+                                    unlist(BigShotPainters), 1, 0),
+             BigShotPainter.name = ifelse(authorstandard %in% 
+                                    unlist(BigShotPainters), authorstandard, "Hack"),
+             endbuyer = ifelse(endbuyer=="U"|winningbiddertype == "",
+                                        "N",
+                                        winningbiddertype) %>% 
+                                    substr(.,1,1) %>% as.factor(), 
+             dealer = factor(dealer),
+             lot = str_replace_all(lot, "lot", "")%>% as.numeric(),
+             origin_author = factor(origin_author),
+             winningbiddertype = ifelse(is.na(winningbiddertype)|winningbiddertype == "",
+                                        "None",
+                                        winningbiddertype) %>% as.factor(),
+             type_intermed = factor(ifelse(type_intermed=="", 
+                                           "None",
+                                           type_intermed))%>% substr(.,1,1),
+             school_pntg= ifelse(school_pntg %in% c("A","S","G","X"),
+                                 "other or unknown", school_pntg) %>% 
+                                  as.factor(),
+             # authorstandard=as.factor(authorstandard), 
+             artistliving=as.factor(artistliving),
+             authorstyle=ifelse(authorstyle %in% c("m","g","o","al","co","pa"), 
+                                "other", ifelse(authorstyle=="", "missing", 
+                                                authorstyle)) %>% as.factor()
+  ) 
+  # Selecting all the relevant variables for final table
+  data.train = data.train%>% 
+    select(logprice, Shape, log.Surface, Height_in, Width_in, year, artistliving,
+            lot, position, dealer, origin_author, origin_cat, school_pntg,
+            diff_origin, authorstyle, Material, High_Roller, High_Roller.name, 
+           BigShotPainter, BigShotPainter.name, #authorstandard,
+            author, winningbiddertype, endbuyer, Interm, type_intermed,
+             engraved, original, prevcoll, othartist, paired, figures, finished,
+            lrgfont, subject,
+            ## Painting Features
+            relig, landsALL, lands_sc, lands_elem, lands_figs, lands_ment, arch,
+            mytho, peasant, othgenre, singlefig, portrait, still_life, discauth, history,
+            allegory, pastorale, other )
+  
+  return(data.train)
+}
+test = format.data(paintings_test)
 
 ```
 
@@ -189,33 +194,38 @@ library(stringr)
 library(tm)
 library(reshape2)
 
-## Fixing the subject to have multiple columns
-data.train.desc = data.train %>% select(subject) %>%
-  mutate(subject = str_replace_all(subject, "\\(+[0-9]+\\)", "")) %>%
-  mutate(subject = str_replace_all(subject, "\\,", "")) %>%
-  mutate(subject = tolower(subject)) %>%
-  mutate(subject = str_split(subject, " "), ID = row_number()) %>% unnest() %>%
-  mutate(subject = str_replace_all(subject, "\\/", "")) %>% group_by(ID, subject) %>%
-  filter(subject != "") %>% anti_join(data_frame(subject = stopwords(kind="french"))) 
-
-## Taking a look at the top words
-data.train %>% select(-subject) %>%
-  mutate(ID = row_number()) %>% inner_join(data.train.desc) %>%
-  group_by(subject) %>% summarize(avg.cost = mean(logprice), freq = n()) %>%
-  filter(freq>10) %>% arrange(desc(avg.cost))
-
-## Adding each word to the dataset
-# Creating a dataset where each word is a column
-data.train.subject = data.train.desc %>% ungroup() %>% 
-  mutate(subject = str_replace_all(subject, "[0-9]", "")) %>%
-  mutate(subject = str_replace_all(subject, "\\+", "")) %>%
-  mutate(subject = str_replace_all(subject, "\\=", "")) %>%
-  mutate(subject = str_replace_all(subject,"[[:punct:]]", "")) %>%
-  mutate(subject = iconv(subject, to="ASCII//TRANSLIT")) %>%
-  filter(subject != "") %>%
-  mutate(subject = factor(subject), val = n()) %>%
-  group_by(ID,subject) %>%
-  ungroup() %>% dcast(ID ~ subject, value.var="val")
+format.subject = function(data.train){
+  ## Fixing the subject to have multiple columns
+  data.train.desc = data.train %>% select(subject) %>%
+    mutate(subject = str_replace_all(subject, "\\(+[0-9]+\\)", "")) %>%
+    mutate(subject = str_replace_all(subject, "\\,", "")) %>%
+    mutate(subject = tolower(subject)) %>%
+    mutate(subject = str_split(subject, " "), ID = row_number()) %>% unnest() %>%
+    mutate(subject = str_replace_all(subject, "\\/", "")) %>% group_by(ID, subject) %>%
+    filter(subject != "") %>% anti_join(data_frame(subject = stopwords(kind="french"))) 
+  
+  print(dim(data.train.desc))
+  ## Taking a look at the top words
+  # data.train %>% select(-subject) %>%
+  #   mutate(ID = row_number()) %>% inner_join(data.train.desc) %>%
+  #   group_by(subject) %>% summarize(avg.cost = mean(logprice), freq = n()) %>%
+  #   filter(freq>10) %>% arrange(desc(avg.cost))
+  
+  ## Adding each word to the dataset
+  # Creating a dataset where each word is a column
+  data.train.subject = data.train.desc %>% ungroup() %>% 
+    mutate(subject = str_replace_all(subject, "[0-9]", "")) %>%
+    mutate(subject = str_replace_all(subject, "\\+", "")) %>%
+    mutate(subject = str_replace_all(subject, "\\=", "")) %>%
+    mutate(subject = str_replace_all(subject,"[[:punct:]]", "")) %>%
+    mutate(subject = iconv(subject, to="ASCII//TRANSLIT")) %>%
+    mutate(subject = ifelse(subject == "", "None", subject)) %>%
+    mutate(subject = factor(subject), val = n()) %>%
+    group_by(ID,subject) %>%
+    ungroup() %>% dcast(ID ~ subject, value.var="val")
+  return(data.train.subject)
+}
+data.train.subject = format.subject(data.train)
 
 # Some of these words are only used once... let's set the threshold to .5%
 keepers = which(apply(data.train.subject,2,mean)>.005)
@@ -267,17 +277,6 @@ p
 
 
 
-
-
-
-
-
-
-
-
-
-
-
 ```{r Random Forest - Reduced Data}
 # Create Dataset
 RMSE = function(est, obs) return(sqrt(mean((est-obs)^2)))
@@ -315,8 +314,6 @@ data.train.features2 = data.train %>% select(logprice, relig, landsALL, lands_sc
                                             portrait, still_life, discauth, history,allegory, 
                                             pastorale, other) %>% mutate(ID = row_number()) %>%
   inner_join(data.train.subject[,keepers], by = "ID")
-# IDs = unique(data.train.features2$ID)
-# data.train.features2 = data.train.features2%>% select(-ID)
 
 pred.data = data.train %>% select(Shape, log.Surface, Height_in, Width_in, year, artistliving,
           lot, position, dealer, origin_author, origin_cat, school_pntg,
@@ -327,10 +324,6 @@ pred.data = data.train %>% select(Shape, log.Surface, Height_in, Width_in, year,
           lrgfont) %>% mutate(ID = row_number()) %>% #filter(ID %in% IDs)
   inner_join(data.train.features2, by = "ID") %>% na.omit() %>% select(-ID)
 
-# pred.data = lapply(pred.data, function(x) as.factor(x)) %>% as.data.frame()
-# pred.data[,c("logSurface", "logprice", "Height_in", "Width_in", "lot", "position")] = 
-#   lapply(pred.data[,c("logSurface", "logprice", "Height_in", "Width_in", "lot", "position")], function(x) as.numeric(x))
-
 pred.data = unclass(pred.data) %>% as.data.frame()
 
 # colnames(data.train.features2)
@@ -338,6 +331,21 @@ pred.data = unclass(pred.data) %>% as.data.frame()
 train = sample(nrow(pred.data), nrow(pred.data)*.7)
 pred.data.train = pred.data[train,]
 pred.data.test = pred.data[-train,]
+
+
+pred.data.pc = data.train %>% select(logprice, Shape, log.Surface, Height_in, Width_in, year, artistliving,
+          lot, position, dealer, origin_author, origin_cat, school_pntg,
+          diff_origin, authorstyle, Material, High_Roller, High_Roller.name, 
+         BigShotPainter, BigShotPainter.name, #authorstandard,author,
+           winningbiddertype, endbuyer, type_intermed, #Interm,
+           engraved, original, prevcoll, othartist, paired, figures, finished,
+          lrgfont) %>% mutate(ID = row_number()) %>% #filter(ID %in% IDs)
+  inner_join(PCA.scores, by = "ID") %>% na.omit() %>% select(-ID)
+
+pred.data.pc = unclass(pred.data.pc) %>% as.data.frame()
+pred.data.pc.train = pred.data.pc[train,]
+pred.data.pc.test = pred.data.pc[-train,]
+
 
 ```
 
@@ -357,13 +365,25 @@ apply(paintings_train, 2, class)
 ```
 ## Random Forest
 ```{r}
-reduced.forest = randomForest(logprice~., data = pred.data.train)  # Seeing how this does with the whole dataset
+## Full Dataset
+Full.forest = randomForest(logprice~., data = pred.data.train)  # Seeing how this does with the whole dataset
+varImpPlot(Full.forest)
+
+## Reduced Dataset
+reduced.forest = randomForest(logprice~., data = pred.data.pc.train, nodesize=30, ntree=4000)  # Seeing how this does with the whole dataset
 varImpPlot(reduced.forest)
 
-predictions = data_frame(logprice = as.numeric(pred.data.test$logprice), full.pred = predict(reduced.forest, pred.data.test))
+predictions = data_frame(logprice = as.numeric(pred.data.test$logprice), 
+                         reduced.pred = predict(reduced.forest, pred.data.pc.test), 
+                         full.pred = predict(Full.forest, pred.data.test), 
+                         pc.pred = predict(test.pc, pred.data.pc.test))
 
 # RMSE(exp(predictions$reduced.pred), exp(predictions$logprice))
 RMSE(exp(predictions$full.pred), exp(predictions$logprice))
+RMSE(exp(predictions$reduced.pred), exp(predictions$logprice))
+RMSE(exp(predictions$pc.pred), exp(predictions$logprice))
+
+
 
 predictions$full.pred
 
@@ -371,18 +391,47 @@ lm(logprice~., data = test.data)
 test = step(lm(logprice~., data = data.train.features2))
 summary(test)
 
-lm(logprice~., data = pred.data)
-apply(pred.data, 2, class)
-str(pred.data)
-str(data.train.features2)
+lm(logprice~., data = pred.data.pc.train)
+test.pc = step(lm(logprice~., data = pred.data.pc.train))
+summary(test.pc)
+
+
+
+```
+
+```{r Random Forest}
+library(randomForest)
+test.forest = randomForest(logprice~., data = data.train.features)  # Seeing how this does with the whole dataset
+varImpPlot(test.forest)
+
+# Strange words at the top of the list...
+ID.list = data.train.desc %>% ungroup() %>% filter(str_detect(tolower(subject), "paysage")) %>% select(ID) %>% as.list
+#Tableaux??
+# data.train[ID.list$ID,c("subject","landsALL")] %>% View
 
 ```
 
 
-```{r Imputing Missing Data}
+## Submit Validation data
+```{r}
+data.test = format.data(paintings_test)
+data.test.subject = format.subject(data.test)
+data.test.featuers = data.test %>% select(logprice, relig, landsALL, lands_sc, lands_elem, lands_figs, 
+                                            lands_ment, arch,mytho, peasant, othgenre, singlefig, 
+                                            portrait, still_life, discauth, history,allegory, 
+                                            pastorale, other) %>% mutate(ID = row_number()) %>%
+  left_join(data.test.subject[,keepers], by = "ID")
 
+pred.data = data.train %>% select(Shape, log.Surface, Height_in, Width_in, year, artistliving,
+          lot, position, dealer, origin_author, origin_cat, school_pntg,
+          diff_origin, authorstyle, Material, High_Roller, High_Roller.name, 
+         BigShotPainter, BigShotPainter.name, #authorstandard,author,
+           winningbiddertype, endbuyer, type_intermed, #Interm,
+           engraved, original, prevcoll, othartist, paired, figures, finished,
+          lrgfont) %>% mutate(ID = row_number()) %>% #filter(ID %in% IDs)
+  inner_join(data.train.features2, by = "ID") %>% na.omit() %>% select(-ID)
 
-
+pred.data = unclass(pred.data) %>% as.data.frame()
 
 
 ```
@@ -392,6 +441,7 @@ str(data.train.features2)
 5. Assessment of the final model (25 points)
 
 * Model evaluation: must include an evaluation discussion
+###
 
 * Model testing : must include a discussion
 ### Cross Validation
