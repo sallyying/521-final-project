@@ -11,6 +11,7 @@ load("paintings_train.Rdata")
 load("paintings_test.Rdata")
 load("paintings_validation.Rdata")
 set.seed(9)
+```
 
 ```{r setup, include=FALSE, message=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
