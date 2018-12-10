@@ -289,12 +289,11 @@ pred.data.val = data.val %>% select(Shape, log.Surface, Height_in, Width_in, yea
            winningbiddertype, endbuyer, type_intermed, #Interm,
            engraved, original, prevcoll, othartist, paired, figures, finished,
           lrgfont) %>% mutate(ID = row_number()) %>% #filter(ID %in% IDs)
-  inner_join(data.train.features, by = "ID") %>% na.omit() %>% select(-ID)
+  inner_join(data.val.features, by = "ID") %>% select(-ID) # removing na.omit
 
 pred.data.val = unclass(pred.data.val) %>% as.data.frame()
 
 ```
-
 
 
 
