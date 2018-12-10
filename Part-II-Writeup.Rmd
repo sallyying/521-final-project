@@ -5,10 +5,32 @@ date: "12/8/2018"
 output: html_document
 ---
 
-### Data Processing
 
+### Part II: Write Up
+
+Once you are satisfied with your model, provide a write up of your data analysis project in a new Rmd file/pdf file: `Part-II-Writeup.Rmd` by copying over salient parts of your R notebook and the previous writeup (you should also save the pdf version) The written assignment consists of five parts:
+
+1. Introduction (1 point if improved from before)
+  add previous intro with any edits
+We are tasked with identifying the relevant variables for predicting the cost of a painting for a few years in the 18th century. In addition to gaining insight on these variables, we are also interested in generating a prediction to identify paintings that may have been overvalued or undervalued given a set of predictors. There are many factors that drive the prices of paintings. Our team wants to find the intrinsic value of paintings then we can judge whether each specific painting on the market has been overvalued or undervalued. In our project, we focus on the variable selection and tries to detect which variables tend to be informative.
+
+
+Initial inspection of the data revealed that it contained 59 variables: 2 outcomes (price and logprice) and 56 predictors. These predictors fit into several relatively well-defined categories: \
+- Artist Characteristics \
+- Auction Characteristics \
+- Painting Content and Physical Features  \
+
+One of the challenges that these data present is that all of these features were categorical variables with varying levels of sparsity. That is, we may have very precise definitions of the characteristics surrounding the painting, however many of these values are sparsely populated and contain categories that are not well-populated. Therefore, one of our goals in the next seciton will be to identify these predictors and adjust them so they can be interpreted intuitively. 
+
+Another major challenge is the redundancy of some variables. For instance, the variables describing the paintings physical features (height, diameter, surface, shape) can be reduced considerably. Therefore, another goal of subsequent sections will be to further reduce these data to improve interpretability and reduce the number of features that need to be used in the model. 
+
+
+2. Exploratory data analysis (1 point if improved from before): 
+   add previous EDA
+   
+   
 #### Physical Features of Painting
-```{r Physical Features, message=FALSE}
+```{r Physical Features, message=FALSE, echo=FALSE}
 # Shape and Surface
 plot1 = ggplot(data = paintings_train, 
                aes(x = Surface, y = logprice,
@@ -44,24 +66,8 @@ The plots above show several variables that become increasingly sparse as the va
 
 We also see from these plots that the dealer, regardless of the variable on the x axis, seems to stratify the price of the painting fairly neatly. Additionally, we can see from the plot with surface that nearly all the paintings are squares or rectangles. 
 
-#### Painter Characteristics
-```{r Few Tables}
-ggplot (data = paintings_train, 
-                aes(x = school_pntg, y = logprice, color = factor(artistliving)))+
-                geom_jitter() + ggtitle("Artist Features and Log Price")
-
-```
-Artist information includes 6 variables, "school_pntg", "subject",     "authorstandard", "artistliving", "authorstyle", and "author". "subject" is text description of the painting, which is very hard to quantify or act as factors, so we decide to delete it. "authorstandard" is the standard version of the "author". "authorstandard" has 519 unique values, while "author" has 831 unique values. So we think using "authorstandard" instead of "author" would be a better choice. 
-
-In summary, we would use four variables under this category, "school_pntg", "artistliving", "authorstandard", and "authorstyle". And we would use all of them as factors. For "school_pntg", we have 4 levels by combining "A|G|S|X" into one category. We combine those four levels because their data sizes are very small. For "artistliving", it is a binary variable with 0/1. For "authorstandard", we pick authors, whose corresponding mean value of logprices is at least 10% bigger than the mean value of all logprices in the sample data, or at least 10% lower than that, as 1. The rest authors are set as 0. For "authorstyle", we have 5 levels by combining "m|g|o|al|co|pa" since their sample sizes are very small.
-
-From the plot, we can see that "authorstandard" and "school_pntg" may have impact on logprice. "Artistliving" show pretty sparse values of 1 (living), thus making it more difficult to determine a relationship.
-
-Looking at the plots for binary (integer) predictors, we are looking to identify whether a value of 1 or 0 for a variable changes how it is distributed across logprice. But the plots don't look obvious enough to tell the relationships.
-
-
 #### Yearly Effects
-```{r Sales by Dealer and Year}
+```{r Sales by Dealer and Year, echo=FALSE}
 
 ggplot(data = paintings_train, aes(x = factor(year), y = logprice, color = dealer)) + 
   geom_jitter() + ggtitle("Sales by Dealer and Year") + xlab("Year")
@@ -72,9 +78,36 @@ The visualization above shows that the effect of hear on the median sale price d
 Another key takeaway from this is that some dealers were particularly active for some years, but relatively inactive for others. Without much subject area expertise, it is difficult to develop some intuition for why this may be happening. While this may initially suggest that an interaction term is useful, it should be noted that there are some years in which dealers are totally inactive which could seriously hinder the interpretability of the coefficients for the inactive years. 
 
 
-##3. Development and assessment of an initial model (10 points)
 
-* Initial model: must include a summary table and an explanation/discussion for variable selection and overall amount of variation explained. 
+### Data Processing
+```{r}
+library(dplyr)
+library(stringr)
+library(tm)
+library(reshape2)
+library(tidyverse)
+```
+
+
+3. Discussion of preliminary model Part I (5 points)
+Discuss performance based on leader board results and suggested refinements.
+
+
+
+
+
+
+4.  Development of the final model (20 points)
+* Final model: must include a summary table
+
+* Variables: must include an explanation
+
+* Variable selection/shrinkage: must use appropriate method and include an explanation
+
+* Residual: must include a residual plot and a discussion
+
+* discussion of how prediction intervals obtained 
+
 ```{r Format Data}
 # Formatting for some variables
 # Top 10 bidders
@@ -91,14 +124,6 @@ BigShotPainters = data %>% group_by(authorstandard) %>%
               filter(count>10) %>% arrange(desc(avg.haul)) %>%
               select(authorstandard) %>%
               head(10) %>% as.list
-
-data %>% group_by(authorstandard) %>% 
-              summarize(count = n(), avg.haul = mean(logprice)/mean(data$logprice)) %>% 
-              filter(count>10) %>% arrange(desc(avg.haul))
-
-data %>% group_by(authorstyle) %>% 
-              summarize(count = n(), avg.haul = mean(logprice)/mean(data$logprice)) %>% arrange(desc(avg.haul))
-
 
 ## Train data
 data.train = paintings_train %>% 
@@ -146,7 +171,8 @@ data.train = paintings_train %>%
 data.train = data.train%>% 
   select(logprice, Shape, log.Surface, Height_in, Width_in, year, artistliving,
           lot, position, dealer, origin_author, origin_cat, school_pntg,
-          diff_origin, authorstandard, authorstyle,
+          diff_origin, authorstyle, Material, High_Roller, High_Roller.name, 
+         BigShotPainter, BigShotPainter.name, #authorstandard,
           author, winningbiddertype, endbuyer, Interm, type_intermed,
            engraved, original, prevcoll, othartist, paired, figures, finished,
           lrgfont, subject,
@@ -155,38 +181,9 @@ data.train = data.train%>%
           mytho, peasant, othgenre, singlefig, portrait, still_life, discauth, history,
           allegory, pastorale, other )
 
-
-### Additional variables to transform 
-# - subject
-# library(randomForest)
-# Maybe you can adjust the similarity measures between rows
-
-
-
-
-
-original_books <- austen_books() %>%
-  group_by(book) %>%
-  mutate(line = row_number(),
-         chapter = cumsum(str_detect(text, regex("^chapter [\\divxlc]",
-                                                 ignore_case = TRUE)))) %>%
-  ungroup()
-
-
-library(tidytext)
-tidy_books <- original_books %>%
-  unnest_tokens(word, text)
-
-tidy_books
-
-data.train %>% select(subject)
-
-
-
 ```
 
-```{r}
-
+```{r Formatting Subject}
 library(dplyr)
 library(stringr)
 library(tm)
@@ -200,8 +197,6 @@ data.train.desc = data.train %>% select(subject) %>%
   mutate(subject = str_split(subject, " "), ID = row_number()) %>% unnest() %>%
   mutate(subject = str_replace_all(subject, "\\/", "")) %>% group_by(ID, subject) %>%
   filter(subject != "") %>% anti_join(data_frame(subject = stopwords(kind="french"))) 
-## Still need to remove numbers colons semicolons l' d'
-
 
 ## Taking a look at the top words
 data.train %>% select(-subject) %>%
@@ -222,29 +217,36 @@ data.train.subject = data.train.desc %>% ungroup() %>%
   group_by(ID,subject) %>%
   ungroup() %>% dcast(ID ~ subject, value.var="val")
 
+# Some of these words are only used once... let's set the threshold to .5%
+keepers = which(apply(data.train.subject,2,mean)>.005)
+
 data.train.features = data.train %>% select(logprice, relig, landsALL, lands_sc, lands_elem, lands_figs, 
                                             lands_ment, arch,mytho, peasant, othgenre, singlefig, 
                                             portrait, still_life, discauth, history,allegory, 
                                             pastorale, other) %>% mutate(ID = row_number()) %>%
-  inner_join(data.train.subject, by = "ID") %>% select(-ID)
+  inner_join(data.train.subject[,keepers], by = "ID") %>% select(-ID)
+
+
 
 ```
 
 ```{r MixedPCA}
-install.packages('PCAmixdata')
+# install.packages('PCAmixdata')
 library(PCAmixdata)
 PCA.df = lapply(data.train.features%>%select(-logprice), function(x) as.factor(x)) %>% as.data.frame()
 
 PCA = PCAmix(X.quali = PCA.df, ndim = 15, rename.level = TRUE,
   weight.col.quanti = NULL, weight.col.quali = NULL, graph = TRUE)
 
-str(PCA)
+PCA.scores = as.data.frame(PCA$scores.stand) %>% mutate(ID = row_number())
+colnames(PCA.scores) = str_replace_all(colnames(PCA.scores), " ", "")
+
 ```
 
 ```{r 3D Scatterplot with 2 PCs}
 library(scatterplot3d)
 
-dims = data_frame(Dim1 = PCA$scores.stand[,1], Dim2 = PCA$scores.stand[,2], logprice = data.train.features[,1]) %>% filter(Dim1<10 & Dim2<10)
+dims = data_frame(Dim1 = PCA$scores.stand[,1], Dim2 = PCA$scores.stand[,13], logprice = data.train.features[,1]) %>% filter(Dim1<10 & Dim2<10)
 
 # 3D Scatter
 scatterplot3d(x = dims$Dim1, y = dims$Dim2, z = dims$logprice, pch = 16, angle = 200)
@@ -259,17 +261,22 @@ p <- plot_ly(dims, x = ~Dim1, y = ~Dim2, z = ~logprice) %>%
 p
 ```
 
-```{r Random Forest}
-library(randomForest)
-test.forest = randomForest(logprice~., data = data.train.features)  # Seeing how this does with the whole dataset
-varImpPlot(test.forest)
+   
 
-# Strange words at the top of the list...
-ID.list = data.train.desc %>% ungroup() %>% filter(str_detect(tolower(subject), "paysage")) %>% select(ID) %>% as.list
-#Tableaux??
-data.train[ID.list$ID,c("subject","landsALL")] %>% View
 
-```
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ```{r Random Forest - Reduced Data}
 # Create Dataset
@@ -290,6 +297,88 @@ RMSE(exp(predictions$full.pred), exp(predictions$logprice))
 
 ```
 
+
+```{r}
+library(bark)
+library(e1071)
+library(BART)
+library(randomForest)
+library(xgboost)
+```
+
+
+# Trying out a few algorithms
+### Set train and test set
+```{r}
+data.train.features2 = data.train %>% select(logprice, relig, landsALL, lands_sc, lands_elem, lands_figs, 
+                                            lands_ment, arch,mytho, peasant, othgenre, singlefig, 
+                                            portrait, still_life, discauth, history,allegory, 
+                                            pastorale, other) %>% mutate(ID = row_number()) %>%
+  inner_join(data.train.subject[,keepers], by = "ID")
+# IDs = unique(data.train.features2$ID)
+# data.train.features2 = data.train.features2%>% select(-ID)
+
+pred.data = data.train %>% select(Shape, log.Surface, Height_in, Width_in, year, artistliving,
+          lot, position, dealer, origin_author, origin_cat, school_pntg,
+          diff_origin, authorstyle, Material, High_Roller, High_Roller.name, 
+         BigShotPainter, BigShotPainter.name, #authorstandard,author,
+           winningbiddertype, endbuyer, type_intermed, #Interm,
+           engraved, original, prevcoll, othartist, paired, figures, finished,
+          lrgfont) %>% mutate(ID = row_number()) %>% #filter(ID %in% IDs)
+  inner_join(data.train.features2, by = "ID") %>% na.omit() %>% select(-ID)
+
+# pred.data = lapply(pred.data, function(x) as.factor(x)) %>% as.data.frame()
+# pred.data[,c("logSurface", "logprice", "Height_in", "Width_in", "lot", "position")] = 
+#   lapply(pred.data[,c("logSurface", "logprice", "Height_in", "Width_in", "lot", "position")], function(x) as.numeric(x))
+
+pred.data = unclass(pred.data) %>% as.data.frame()
+
+# colnames(data.train.features2)
+# missing = apply(pred.data, 2, function(x) sum(is.na(x)))
+train = sample(nrow(pred.data), nrow(pred.data)*.7)
+pred.data.train = pred.data[train,]
+pred.data.test = pred.data[-train,]
+
+```
+
+```{r}
+test.forest = randomForest(logprice~., data = data.train.features)  # Seeing how this does with the whole dataset
+
+pred.model.mat = model.matrix(logprice~., pred.data)
+colnames(pred.data) = c(colnames(pred.data)[1:48], col.keys$key)
+
+barksample = bark(as.matrix(pred.data[train, -1]), pred.data[train, 1], 
+                              x.test = as.matrix(pred.data[-train, -1]),
+                    classification = FALSE,
+                    type="se")
+
+apply(paintings_train, 2, class)
+
+```
+## Random Forest
+```{r}
+reduced.forest = randomForest(logprice~., data = pred.data.train)  # Seeing how this does with the whole dataset
+varImpPlot(reduced.forest)
+
+predictions = data_frame(logprice = as.numeric(pred.data.test$logprice), full.pred = predict(reduced.forest, pred.data.test))
+
+# RMSE(exp(predictions$reduced.pred), exp(predictions$logprice))
+RMSE(exp(predictions$full.pred), exp(predictions$logprice))
+
+predictions$full.pred
+
+lm(logprice~., data = test.data)
+test = step(lm(logprice~., data = data.train.features2))
+summary(test)
+
+lm(logprice~., data = pred.data)
+apply(pred.data, 2, class)
+str(pred.data)
+str(data.train.features2)
+
+```
+
+
 ```{r Imputing Missing Data}
 
 
@@ -297,4 +386,20 @@ RMSE(exp(predictions$full.pred), exp(predictions$logprice))
 
 
 ```
+
+
+
+5. Assessment of the final model (25 points)
+
+* Model evaluation: must include an evaluation discussion
+
+* Model testing : must include a discussion
+### Cross Validation
+
+* Model result: must include a selection and discussion of the top 10 valued  paintings in the validation data.
+
+
+6. Conclusion (10 points): must include a summary of results and a discussion of things learned. Optional what would you do if you had more time.
+
+
 
