@@ -519,130 +519,86 @@ ggplot(data = Plot.df, aes(x = Variable, y = Estimate, color = factor(In.Zero)))
 BMA.prediction = predict(basg, newdata = pred.data.val, estimator = "BMA", 
                          se.fit = TRUE, interval = "prediction")
 rmse(exp(BMA.prediction), exp(pred.data.test$logprice))
-
 BMA.prediction
-
 str(BMA.prediction)
+preds = cbind(confint(BMA.prediction)[,3], confint(BMA.prediction)[,1], confint(BMA.prediction)[,2]) 
 
-preds = cbind(confint(BMA.prediction)[,3], confint(BMA.prediction)[,1], confint(BMA.prediction)[,2])
+predictions = data.frame(fit = exp(BMA.prediction$fit), lwr = exp(BMA.prediction$fit-2), upr = exp(BMA.prediction$fit+2))
+save(predictions, file="predict-validation.Rdata")
+
+library(mice)
+imputed_Data <- mice(pred.data.val, m=2, maxit = 10, method = 'pmm', seed = 9)
+test.imputation = complete(imputed_Data) 
+
+test.imputation$log.Surface[is.na(test.imputation$log.Surface)] = mean(test.imputation$log.Surface, na.rm=TRUE)
+
+BMA.prediction = predict(basg, newdata = test.imputation, estimator = "BPM", 
+                         se.fit = TRUE, interval = "prediction")
+preds = cbind(confint(BMA.prediction)[,3], confint(BMA.prediction)[,1], confint(BMA.prediction)[,2]) 
 
 predictions = data.frame(fit = exp(BMA.prediction$fit), lwr = exp(BMA.prediction$fit-2), upr = exp(BMA.prediction$fit+2))
 save(predictions, file="predict-validation.Rdata")
 
 
+```
 
+```{r, echo=TRUE}
+set.seed(42)
+n = nrow(pred.data)
+train.ind = sample(1:n, size=3*n/4, rep=FALSE)
+train = as.h2o(pred.data[train.ind,])
+test = as.h2o(pred.data[-train.ind,])
+```
 
-y <- "logprice"
-x <- setdiff(names(train), y)
-nfolds=5
-Mse=0
-t=0
-#fold k=5 cross validation
-  Fold = sample(rep(1:5, ceiling(nrow(pred.data)/5)), nrow(pred.data))
-se = c()
-for (j in 1:5){
-  datate=pred.datah2o[Fold==j,]
-  datatr=pred.datah2o[Fold!=j,]
-  gbm_fit <- h2o.gbm(y = y, x=x,
-                  training_frame = datatr,
-                  distribution = "AUTO",
-                  model_id = "gbm_fit2",
-                  ntrees = 100,
-                  #max_depth = 4,
-                  #min_rows = 2,
-                  # learn_rate = 0.2,
-                  nfolds = nfolds,
-                  fold_assignment = "Modulo",
-                  keep_cross_validation_predictions = TRUE,
-                  seed = 9)
-  Mse=Mse+mse(exp(h2o.predict(gbm_fit,newdata = datate[,-which(names(datate) %in% c("logprice"))])),exp(datate$logprice))
-  t=t+1
-  }
-  gbmrmse=sqrt(Mse/t)
-#gbmy=h2o.predict(gbm_fit,newdata = test[,-1])
-#rmse(exp(gbmy),exp(test$logprice))
+## Fit GBM
 
-  
-  
-# random forest
-Mse=t=0
-for (i in seq(1,1121,by=280))
-{
-  testind=seq(i,i+279,by=1)
-  datate=pred.datah2o[testind,]
-  datatr=pred.datah2o[-testind,]
-  rf_fit <- h2o.randomForest(y = y,x = x,
-                          training_frame = datatr,
-                          ntrees = 100,
-                          nfolds = nfolds,
-                          fold_assignment = "Modulo",
-                          keep_cross_validation_predictions = TRUE,
-                          seed = 9)
-  Mse=Mse+mse(exp(h2o.predict(rf_fit,newdata = datate[,-which(names(datate) %in% c("logprice"))])),exp(datate$logprice))
-  t=t+1
-}
-  rfrmse=sqrt(Mse/t)
+```{r  echo=TRUE}
+nfolds <- 5
 
-#glm
-  Mse=t=0
-for (i in seq(1,1121,by=280))
-{
-  testind=seq(i,i+279,by=1)
-  datate=pred.datah2o[testind,]
-  datatr=pred.datah2o[-testind,]
-  glm_fit <- h2o.glm(y = y, x = x,
-                   training_frame = datatr,
-                   family="gaussian",
-                   nfolds = nfolds,
-                   fold_assignment = "Modulo",
-                   keep_cross_validation_predictions = TRUE,
-                   seed = 9)
-  Mse=Mse+mse(exp(h2o.predict(glm_fit,newdata = datate[,-which(names(datate) %in% c("logprice"))])),exp(datate$logprice))
-  t=t+1
-}
-  glmrmse=sqrt(Mse/t)
-cbind(gbmrmse,glmrmse,rfrmse)
-
-# Train a stacked ensemble using the GBM, GLM, and RF above
-splits <- h2o.splitFrame(data = pred.datah2o, 
-                        ratios = 0.7,  
-                       seed = 9)  
-train <- splits[[1]]
-test <- splits[[2]]  
-gbm_fit <- h2o.gbm(y = y, x=x,
+my_gbm <- h2o.gbm(y = "logprice",
                   training_frame = train,
-                  distribution = "AUTO",
-                  model_id = "gbm_fit2",
+                  distribution = "gaussian",
                   ntrees = 100,
-                  #max_depth = 4,
-                  #min_rows = 2,
-                  # learn_rate = 0.2,
+                  max_depth = 4,
+                  min_rows = 2,
+                  learn_rate = 0.2,
                   nfolds = nfolds,
                   fold_assignment = "Modulo",
                   keep_cross_validation_predictions = TRUE,
-                  seed = 9)
-  rf_fit <- h2o.randomForest(y = y,x = x,
+                  seed = 1)
+perf.gbm <- h2o.performance(my_gbm, newdata = test)
+
+# Train & Cross-validate a RF
+my_rf <- h2o.randomForest(y = "logprice",
                           training_frame = train,
-                          ntrees = 500,
+                          ntrees = 50,
                           nfolds = nfolds,
                           fold_assignment = "Modulo",
                           keep_cross_validation_predictions = TRUE,
-                          seed = 9)
-  glm_fit <- h2o.glm(y = y, x = x,
-                   training_frame = train,
-                   family="gaussian",
-                   nfolds = nfolds,
-                   fold_assignment = "Modulo",
-                   keep_cross_validation_predictions = TRUE,
-                   seed = 9)
-  ensemble <- h2o.stackedEnsemble(y = y, x = x,
+                          seed = 1)
+perf.rf <- h2o.performance(my_rf, newdata = test)
+
+my_glm <- h2o.glm(y = "logprice",
+                          training_frame = train,
+                          family="gaussian",
+                          nfolds = nfolds,
+                          fold_assignment = "Modulo",
+                          keep_cross_validation_predictions = TRUE,
+                          seed = 1)
+perf.glm <- h2o.performance(my_glm, newdata = test)
+# Train a stacked ensemble using the GBM and RF above
+ensemble <- h2o.stackedEnsemble(y = "logprice",
                                 training_frame = train,
-                                model_id = "my_ensemble",
-                                base_models = list(gbm_fit,rf_fit, glm_fit))
-  rmseen=rmse(exp(h2o.predict(ensemble,newdata = test[,-which(names(datate) %in% c("logprice"))])),exp(test$logprice))
+                                model_id = "my_ensemble_binomial",
+                                base_models = list(my_gbm, my_rf, my_glm))
+
+# Eval ensemble performance on a test set
+perf.ensemble <- h2o.performance(ensemble, newdata = test)
 
 
-cbind(gbmrmse,glmrmse,rfrmse, rmseen)
+c(h2o.mse(perf.glm), h2o.mse(perf.gbm), h2o.mse(perf.rf))
+
+str(perf.gbm)
 
 ```
 
