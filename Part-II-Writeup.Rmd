@@ -533,7 +533,7 @@ save(predictions, file="predict-validation.Rdata")
 
 
 y <- "logprice"
-x <- setdiff(names(train), y)
+x <- setdiff(names(pred.datah2o), y)
 nfolds=5
 Mse=0
 t=0
