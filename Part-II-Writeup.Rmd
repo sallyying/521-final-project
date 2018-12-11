@@ -106,7 +106,7 @@ library(tidyverse)
 3. Discussion of preliminary model Part I (5 points)
 Discuss performance based on leader board results and suggested refinements.
 
-
+From the leader board results of Part I, we can see that our team (team 9) has the smallest bias. And our coverage is in the middle-to-high level.Our maxDeviation and meanabsdeviation are also very small compared to other groups. Our rmse value is in the middle level. So we think we should minimize rmse further in our Part II model. On the one hand, we try to include excluded variables like "subjects" to see if it can help to improve our model. On the other hand, We are considering using non-linear models like gradient boosting model, random forest and bart to see if it can make our predictions better.  
 
 
 
