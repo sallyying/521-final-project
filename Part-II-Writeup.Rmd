@@ -10,6 +10,7 @@ load("paintings_train.Rdata")
 load("paintings_test.Rdata")
 load("paintings_validation.Rdata")
 set.seed(9)
+
 knitr::opts_chunk$set(echo = FALSE)
 library(dplyr)
 library(tidyr)
@@ -19,11 +20,7 @@ library(glmnet)
 library(knitr)
 ```
 
-```{r read-data, echo=FALSE, message=FALSE}
-load("paintings_train.Rdata")
-load("paintings_test.Rdata")
-set.seed(9)
-```
+
 ### Part II: Write Up
 
 Once you are satisfied with your model, provide a write up of your data analysis project in a new Rmd file/pdf file: `Part-II-Writeup.Rmd` by copying over salient parts of your R notebook and the previous writeup (you should also save the pdf version) The written assignment consists of five parts:
@@ -99,7 +96,6 @@ Another key takeaway from this is that some dealers were particularly active for
 
 ### Data Processing
 ```{r}
-library(dplyr)
 library(stringr)
 library(tm)
 library(reshape2)
@@ -285,7 +281,7 @@ pred.data.val = data.val %>% select(Shape, log.Surface, Height_in, Width_in, yea
            winningbiddertype, endbuyer, type_intermed, #Interm,
            engraved, original, prevcoll, othartist, paired, figures, finished,
           lrgfont) %>% mutate(ID = row_number()) %>% #filter(ID %in% IDs)
-  inner_join(data.val.features, by = "ID") %>% select(-ID) # removing na.omit
+  left_join(data.val.features, by = "ID") %>% select(-ID) # removing na.omit
 
 pred.data.val = unclass(pred.data.val) %>% as.data.frame()
 
@@ -467,29 +463,86 @@ library(h2o)
 h2o.init()
 ```
 
-```{r boosting gbm}
-rmse = function(obs, pred) { sqrt(sum((obs - pred)^2)/length(obs))}
-mse=function(obs, pred){sum((obs - pred)^2)/length(obs)}
-data.trainh2o = as.h2o(data.train)
-#summary(data.trainh2o)
 
+```{r boosting gbm}
+rmse = function(obs, pred) { sqrt(mean((obs - pred)^2))}
+mse=function(obs, pred){sum((obs - pred)^2)/length(obs)}
+pred.datah2o = as.h2o(pred.data)
+#summary(pred.datah2o)
 # split into train, test  
-splits <- h2o.splitFrame(data = data.trainh2o, 
-                         ratios = 0.7,  
-                         seed = 9)  
-train <- splits[[1]]
-test <- splits[[2]]
+#splits <- h2o.splitFrame(data = pred.datah2o, 
+#                        ratios = 0.7,  
+#                       seed = 9)  
+#train <- splits[[1]]
+#test <- splits[[2]]
+library(randomForest)
+library(glmnet)
+Fold = sample(rep(1:5, ceiling(nrow(pred.data)/5)), nrow(pred.data))
+se = c()
+for (j in 1:5){
+  Train = pred.data[Fold!=j ,] %>% select(-winningbiddertype, -authorstyle)
+  Test = pred.data[Fold==j ,]%>% select(-winningbiddertype, -authorstyle)
+  # model = cv.glmnet(x = Train, y = Train.y, standardize = TRUE, alpha = 1)
+  # model = lm(logprice ~., data = Train)
+  model = randomForest(logprice~., data = Train, nodesize=30, ntree=4000) 
+  se = c(se, rmse(exp(predict(model, Test)), exp(Test$logprice)))
+}
+se
+dim(Train.y)
+
+library(BAS)
+basg=bas.lm(logprice ~ .
+, data=pred.data%>% select(-authorstyle, -winningbiddertype),
+prior="g-prior", a=nrow(pred.data), modelprior=uniform(),
+method="MCMC", MCMC.iterations = 500000, thin = 20)
+
+par(mfrow = c(2,2))
+plot(basg)
+
+## Plotting Confidence interval
+BMA <- predict(basg, estimator = "BMA")
+
+x = confint(coef(basg, estimator = "BMA"))
+
+Plot.df = data_frame(Variable = attr(x, "dimnames")[[1]], 
+                  Estimate = x[,3], Lower = x[,1], 
+                  Upper = x[,2]) %>% 
+  mutate(In.Zero = ifelse(Upper*Lower<0, 1, 0)) %>%
+  filter(Variable %in% variable.names(BPM))
+
+ggplot(data = Plot.df, aes(x = Variable, y = Estimate, color = factor(In.Zero)))+ 
+  geom_point() +
+  geom_errorbar(aes(ymin = Lower, ymax = Upper))+ 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+
+BMA.prediction = predict(basg, newdata = pred.data.val, estimator = "BMA", 
+                         se.fit = TRUE, interval = "prediction")
+rmse(exp(BMA.prediction), exp(pred.data.test$logprice))
+
+BMA.prediction
+
+str(BMA.prediction)
+
+preds = cbind(confint(BMA.prediction)[,3], confint(BMA.prediction)[,1], confint(BMA.prediction)[,2])
+
+predictions = data.frame(fit = exp(BMA.prediction$fit), lwr = exp(BMA.prediction$fit-2), upr = exp(BMA.prediction$fit+2))
+save(predictions, file="predict-validation.Rdata")
+
+
+
 
 y <- "logprice"
 x <- setdiff(names(train), y)
-#interactions?
 nfolds=5
 Mse=0
-for (i in seq(1,1301,by=100))
-{
-  testind=seq(i,i+99,by=1)
-  datate=data.trainh2o[testind,]
-  datatr=data.trainh2o[-testind,]
+t=0
+#fold k=5 cross validation
+  Fold = sample(rep(1:5, ceiling(nrow(pred.data)/5)), nrow(pred.data))
+se = c()
+for (j in 1:5){
+  datate=pred.datah2o[Fold==j,]
+  datatr=pred.datah2o[Fold!=j,]
   gbm_fit <- h2o.gbm(y = y, x=x,
                   training_frame = datatr,
                   distribution = "AUTO",
@@ -502,12 +555,94 @@ for (i in seq(1,1301,by=100))
                   fold_assignment = "Modulo",
                   keep_cross_validation_predictions = TRUE,
                   seed = 9)
-  Mse=Mse+mse(exp(h2o.predict(gbm_fit,newdata = datate[,-1])),exp(datate$logprice))
-}
-  gbmrmse=sqrt(Mse)
+  Mse=Mse+mse(exp(h2o.predict(gbm_fit,newdata = datate[,-which(names(datate) %in% c("logprice"))])),exp(datate$logprice))
+  t=t+1
+  }
+  gbmrmse=sqrt(Mse/t)
+#gbmy=h2o.predict(gbm_fit,newdata = test[,-1])
+#rmse(exp(gbmy),exp(test$logprice))
 
-gbmy=h2o.predict(gbm_fit,newdata = test[,-1])
-rmse(exp(gbmy),exp(test$logprice))
+  
+  
+# random forest
+Mse=t=0
+for (i in seq(1,1121,by=280))
+{
+  testind=seq(i,i+279,by=1)
+  datate=pred.datah2o[testind,]
+  datatr=pred.datah2o[-testind,]
+  rf_fit <- h2o.randomForest(y = y,x = x,
+                          training_frame = datatr,
+                          ntrees = 100,
+                          nfolds = nfolds,
+                          fold_assignment = "Modulo",
+                          keep_cross_validation_predictions = TRUE,
+                          seed = 9)
+  Mse=Mse+mse(exp(h2o.predict(rf_fit,newdata = datate[,-which(names(datate) %in% c("logprice"))])),exp(datate$logprice))
+  t=t+1
+}
+  rfrmse=sqrt(Mse/t)
+
+#glm
+  Mse=t=0
+for (i in seq(1,1121,by=280))
+{
+  testind=seq(i,i+279,by=1)
+  datate=pred.datah2o[testind,]
+  datatr=pred.datah2o[-testind,]
+  glm_fit <- h2o.glm(y = y, x = x,
+                   training_frame = datatr,
+                   family="gaussian",
+                   nfolds = nfolds,
+                   fold_assignment = "Modulo",
+                   keep_cross_validation_predictions = TRUE,
+                   seed = 9)
+  Mse=Mse+mse(exp(h2o.predict(glm_fit,newdata = datate[,-which(names(datate) %in% c("logprice"))])),exp(datate$logprice))
+  t=t+1
+}
+  glmrmse=sqrt(Mse/t)
+cbind(gbmrmse,glmrmse,rfrmse)
+
+# Train a stacked ensemble using the GBM, GLM, and RF above
+splits <- h2o.splitFrame(data = pred.datah2o, 
+                        ratios = 0.7,  
+                       seed = 9)  
+train <- splits[[1]]
+test <- splits[[2]]  
+gbm_fit <- h2o.gbm(y = y, x=x,
+                  training_frame = train,
+                  distribution = "AUTO",
+                  model_id = "gbm_fit2",
+                  ntrees = 100,
+                  #max_depth = 4,
+                  #min_rows = 2,
+                  # learn_rate = 0.2,
+                  nfolds = nfolds,
+                  fold_assignment = "Modulo",
+                  keep_cross_validation_predictions = TRUE,
+                  seed = 9)
+  rf_fit <- h2o.randomForest(y = y,x = x,
+                          training_frame = train,
+                          ntrees = 500,
+                          nfolds = nfolds,
+                          fold_assignment = "Modulo",
+                          keep_cross_validation_predictions = TRUE,
+                          seed = 9)
+  glm_fit <- h2o.glm(y = y, x = x,
+                   training_frame = train,
+                   family="gaussian",
+                   nfolds = nfolds,
+                   fold_assignment = "Modulo",
+                   keep_cross_validation_predictions = TRUE,
+                   seed = 9)
+  ensemble <- h2o.stackedEnsemble(y = y, x = x,
+                                training_frame = train,
+                                model_id = "my_ensemble",
+                                base_models = list(gbm_fit,rf_fit, glm_fit))
+  rmseen=rmse(exp(h2o.predict(ensemble,newdata = test[,-which(names(datate) %in% c("logprice"))])),exp(test$logprice))
+
+
+cbind(gbmrmse,glmrmse,rfrmse, rmseen)
 
 ```
 
@@ -532,6 +667,9 @@ pred.data = data.train %>% select(Shape, log.Surface, Height_in, Width_in, year,
   inner_join(data.train.features2, by = "ID") %>% na.omit() %>% select(-ID)
 
 pred.data = unclass(pred.data) %>% as.data.frame()
+
+
+
 
 
 ```
