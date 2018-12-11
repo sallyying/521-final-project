@@ -41,8 +41,6 @@ Another major challenge is the redundancy of some variables. For instance, the v
 
 
 2. Exploratory data analysis (1 point if improved from before): 
-   add previous EDA
-   
    
 #### Physical Features of Painting
 ```{r Physical Features, message=FALSE, echo=FALSE}
@@ -116,9 +114,20 @@ Discuss performance based on leader board results and suggested refinements.
 
 * Variables: must include an explanation
 
+There were several key changes to the variables that were used in this round because the original constraint of 20 variables was removed. 
+
+In the original dataset, we created two new dichotomous variables from the names of the winning bidders and authors. For each variable, we looked at the top 10 names with respect to the average logprice over the average and coded the variable as 1 if they were on the list and 0 otherwise. In this case, rather than creating a variable that was either 0 or 1, we created a variable that was the name of the bidder/author if they were on the top 10 list or a placeholder value if they were not. Therefore, for each of these new factor variables had 11 unique values (10 distinct names and 1 placeholder value).
+
+Our most significant improvement to this dataset came from the parsing of the subject description. In the original model, we removed the subject column entirely from our predition because it was a free text response. To make use of this variable, we believed that the text data had to be separated into its individual words which would then be able to predict the value of the painting. To do this, we first split each "subject" entry into its constituent words and removed any special characters or accent marks from those words. Once this was done, we filtered this list down to remove the "stop words" (e.g. and, then, the, were). This was particularly challenging because the descriptions were all written in French, so the R package "tm" had to be used to remove these words. These data were then transposed so each remaining word became its own column that was coded as 1 for each observation that contained the word and 0 for each observation that didn't. This was then further filtered using colmeans to remove any words that occurred in less than .5% of the subject descriptions. 
+
+Finally, because there were missing data, we used the R package MICE to fill in these missing values. It is worth noting that this was not done for the training values, but only for the validation values to ensure consistency in the model build. 
+
 * Variable selection/shrinkage: must use appropriate method and include an explanation
 
+
 * Residual: must include a residual plot and a discussion
+
+
 
 * discussion of how prediction intervals obtained 
 
@@ -287,8 +296,7 @@ pred.data.val = unclass(pred.data.val) %>% as.data.frame()
 
 ```
 
-
-
+### Visualizing some of the words with MCA
 ```{r MixedPCA}
 
 
@@ -468,13 +476,7 @@ h2o.init()
 rmse = function(obs, pred) { sqrt(mean((obs - pred)^2))}
 mse=function(obs, pred){sum((obs - pred)^2)/length(obs)}
 pred.datah2o = as.h2o(pred.data)
-#summary(pred.datah2o)
-# split into train, test  
-#splits <- h2o.splitFrame(data = pred.datah2o, 
-#                        ratios = 0.7,  
-#                       seed = 9)  
-#train <- splits[[1]]
-#test <- splits[[2]]
+
 library(randomForest)
 library(glmnet)
 Fold = sample(rep(1:5, ceiling(nrow(pred.data)/5)), nrow(pred.data))
@@ -526,6 +528,8 @@ preds = cbind(confint(BMA.prediction)[,3], confint(BMA.prediction)[,1], confint(
 predictions = data.frame(fit = exp(BMA.prediction$fit), lwr = exp(BMA.prediction$fit-2), upr = exp(BMA.prediction$fit+2))
 save(predictions, file="predict-validation.Rdata")
 
+
+## 
 library(mice)
 imputed_Data <- mice(pred.data.val, m=2, maxit = 10, method = 'pmm', seed = 9)
 test.imputation = complete(imputed_Data) 
