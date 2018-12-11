@@ -5,14 +5,11 @@ date: "12/8/2018"
 output: html_document
 ---
 
-<<<<<<< HEAD
 ```{r read-data, include=FALSE, message=FALSE}
 load("paintings_train.Rdata")
 load("paintings_test.Rdata")
 load("paintings_validation.Rdata")
 set.seed(9)
-=======
-```{r setup, include=FALSE, message=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
 library(dplyr)
 library(tidyr)
@@ -20,7 +17,6 @@ library(stringr)
 library(ggplot2) 
 library(glmnet)
 library(knitr)
->>>>>>> ffec0a542a9441748fb073951986d72f6ba80dd3
 ```
 
 ```{r read-data, echo=FALSE, message=FALSE}
@@ -298,6 +294,8 @@ pred.data.val = unclass(pred.data.val) %>% as.data.frame()
 
 
 ```{r MixedPCA}
+
+
 # install.packages('PCAmixdata')
 library(PCAmixdata)
 PCA.df = lapply(data.train.features%>%select(-logprice), function(x) as.factor(x)) %>% as.data.frame()
