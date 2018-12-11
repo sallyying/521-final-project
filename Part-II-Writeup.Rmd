@@ -18,6 +18,7 @@ library(stringr)
 library(ggplot2) 
 library(glmnet)
 library(knitr)
+
 ```
 
 
@@ -333,6 +334,8 @@ pred.data.val = data.val %>% select(Shape, log.Surface, Height_in, Width_in, yea
   left_join(data.val.features.reduced, by = "ID") %>% select(-ID)
 pred.data.val = unclass(pred.data.val) %>% as.data.frame()
 
+
+summary(lm(logprice ~ .^2, data=Train%>% select(-authorstyle, -High_Roller, -BigShotPainter, -winningbiddertype)))
 ```
 
 
@@ -344,18 +347,18 @@ Fold = sample(rep(1:10, ceiling(nrow(pred.data)/5)), nrow(pred.data))
 j=1
 Train = pred.data[Fold!=j ,]
 Test = pred.data[Fold==j ,]
-basg=bas.lm(logprice ~ . + lot:dealer + dealer:origin_cat + dealer:school_pntg +
+basg=bas.lm(logprice ~ . + lot:dealer + 
               position:dealer + artistliving:position
       , data=Train%>% select(-authorstyle, -High_Roller, -BigShotPainter, -winningbiddertype),
-      prior="g-prior", a=nrow(Train), modelprior=uniform(), force.heredity = FALSE,
-      method="MCMC", MCMC.iterations = 500000, thin = 20)
+      prior="g-prior", a=nrow(Train), modelprior=uniform(), 
+      method="MCMC", MCMC.iterations = 5000000, thin = 20)
 BMA <- predict(basg, estimator = "BMA")
 
-BMA.prediction = predict(basg, newdata = Test, estimator = "BPM", 
+BMA.prediction = predict(basg, newdata = Test, estimator = "BMA", 
                          se.fit = TRUE, interval = "prediction")
 rmse(exp(confint(BMA.prediction)[,3]), exp(Test$logprice))
 
-x = confint(coef(basg, estimator = "BPM"))
+x = confint(coef(basg, estimator = "BMA"))
 
 Plot.df = data_frame(Variable = attr(x, "dimnames")[[1]], 
                   Estimate = x[,3], Lower = x[,1], 
@@ -437,43 +440,6 @@ If I had more time...
 
 ## Submit Validation Data Predictions
 ```{r BAS prediction}
-library(BAS)
-basg=bas.lm(logprice ~ .
-, data=pred.data%>% select(-authorstyle, -winningbiddertype),
-prior="g-prior", a=nrow(pred.data), modelprior=uniform(),
-method="MCMC", MCMC.iterations = 500000, thin = 20)
-
-par(mfrow = c(2,2))
-plot(basg)
-
-## Plotting Confidence interval
-BMA <- predict(basg, estimator = "BMA")
-
-x = confint(coef(basg, estimator = "BMA"))
-
-Plot.df = data_frame(Variable = attr(x, "dimnames")[[1]], 
-                  Estimate = x[,3], Lower = x[,1], 
-                  Upper = x[,2]) %>% 
-  mutate(In.Zero = ifelse(Upper*Lower<0, 1, 0)) %>%
-  filter(Variable %in% variable.names(BPM))
-
-ggplot(data = Plot.df, aes(x = Variable, y = Estimate, color = factor(In.Zero)))+ 
-  geom_point() +
-  geom_errorbar(aes(ymin = Lower, ymax = Upper))+ 
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-
-
-BMA.prediction = predict(basg, newdata = pred.data.val, estimator = "BMA", 
-                         se.fit = TRUE, interval = "prediction")
-rmse(exp(BMA.prediction), exp(pred.data.test$logprice))
-BMA.prediction
-str(BMA.prediction)
-preds = cbind(confint(BMA.prediction)[,3], confint(BMA.prediction)[,1], confint(BMA.prediction)[,2]) 
-
-predictions = data.frame(fit = exp(BMA.prediction$fit), lwr = exp(BMA.prediction$fit-2), upr = exp(BMA.prediction$fit+2))
-save(predictions, file="predict-validation.Rdata")
-
-
 ## 
 library(mice)
 imputed_Data <- mice(pred.data.val, m=2, maxit = 10, method = 'pmm', seed = 9)
@@ -482,12 +448,20 @@ test.imputation = complete(imputed_Data)
 
 test.imputation$log.Surface[is.na(test.imputation$log.Surface)] = mean(test.imputation$log.Surface, na.rm=TRUE)
 
-BMA.prediction = predict(basg, newdata = test.imputation, estimator = "BPM", 
-                         se.fit = TRUE, interval = "prediction")
+BMA.prediction = predict(basg, newdata = test.imputation, estimator = "BMA", 
+                         se.fit = TRUE,
+                         interval = "prediction")
+
+str(BMA.prediction)
+x = confint(BMA.prediction)
 preds = cbind(confint(BMA.prediction)[,3], confint(BMA.prediction)[,1], confint(BMA.prediction)[,2]) 
 
-predictions = data.frame(fit = exp(BMA.prediction$fit), lwr = exp(BMA.prediction$fit-2), upr = exp(BMA.prediction$fit+2))
+# predictions = data.frame(fit = exp(BMA.prediction$fit), lwr = exp(BMA.prediction$fit-2), upr = exp(BMA.prediction$fit+2))
+predictions = data.frame(fit = exp(BMA.prediction$fit), 
+                         lwr = exp(BMA.prediction$fit - 2*BMA.prediction$se.bma.pred), 
+                         upr = exp(BMA.prediction$fit + 2*BMA.prediction$se.bma.pred))
 save(predictions, file="predict-validation.Rdata")
+  
 
 ```
 
