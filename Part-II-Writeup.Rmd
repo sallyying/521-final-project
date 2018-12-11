@@ -549,6 +549,13 @@ train.ind = sample(1:n, size=3*n/4, rep=FALSE)
 train = as.h2o(pred.data[train.ind,])
 test = as.h2o(pred.data[-train.ind,])
 ```
+```{r, echo=TRUE}
+set.seed(42)
+n = nrow(pred.data)
+train.ind = sample(1:n, size=3*n/4, rep=FALSE)
+train = as.h2o(pred.data[train.ind,])
+test = as.h2o(pred.data[-train.ind,])
+```
 
 ## Fit GBM
 
@@ -644,6 +651,5 @@ pred.data = unclass(pred.data) %>% as.data.frame()
 
 
 6. Conclusion (10 points): must include a summary of results and a discussion of things learned. Optional what would you do if you had more time.
-
 
 
