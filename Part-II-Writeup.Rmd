@@ -108,7 +108,6 @@ From the leader board results of Part I, we can see that our team (team 9) has t
 
 
 
-
 4.  Development of the final model (20 points)
 * Final model: must include a summary table
 
@@ -121,15 +120,6 @@ In the original dataset, we created two new dichotomous variables from the names
 Our most significant improvement to this dataset came from the parsing of the subject description. In the original model, we removed the subject column entirely from our predition because it was a free text response. To make use of this variable, we believed that the text data had to be separated into its individual words which would then be able to predict the value of the painting. To do this, we first split each "subject" entry into its constituent words and removed any special characters or accent marks from those words. Once this was done, we filtered this list down to remove the "stop words" (e.g. and, then, the, were). This was particularly challenging because the descriptions were all written in French, so the R package "tm" had to be used to remove these words. These data were then transposed so each remaining word became its own column that was coded as 1 for each observation that contained the word and 0 for each observation that didn't. This was then further filtered using colmeans to remove any words that occurred in less than .5% of the subject descriptions. 
 
 Finally, because there were missing data, we used the R package MICE to fill in these missing values. It is worth noting that this was not done for the training values, but only for the validation values to ensure consistency in the model build. 
-
-* Variable selection/shrinkage: must use appropriate method and include an explanation
-
-
-* Residual: must include a residual plot and a discussion
-
-
-
-* discussion of how prediction intervals obtained 
 
 ```{r Format Data}
 # Formatting for some variables
@@ -296,13 +286,15 @@ pred.data.val = unclass(pred.data.val) %>% as.data.frame()
 
 ```
 
+
+* Variable selection/shrinkage: must use appropriate method and include an explanation
+
+The variables 
+
 ### Visualizing some of the words with MCA
-```{r MixedPCA}
-
-
-# install.packages('PCAmixdata')
+```{r Feature Reduction, include = FALSE}
 library(PCAmixdata)
-PCA.df = lapply(data.train.features%>%select(-logprice), function(x) as.factor(x)) %>% as.data.frame()
+PCA.df = lapply(data.train.features%>%select(-logprice, -ID), function(x) as.factor(x)) %>% as.data.frame()
 
 PCA = PCAmix(X.quali = PCA.df, ndim = 15, rename.level = TRUE,
   weight.col.quanti = NULL, weight.col.quali = NULL, graph = TRUE)
@@ -310,7 +302,85 @@ PCA = PCAmix(X.quali = PCA.df, ndim = 15, rename.level = TRUE,
 PCA.scores = as.data.frame(PCA$scores.stand) %>% mutate(ID = row_number())
 colnames(PCA.scores) = str_replace_all(colnames(PCA.scores), " ", "")
 
+plot(PCA)
+
+# Most important PCs
+word.selection = step(lm(logprice~., data = data.train.features%>%select(-ID)))
+summary(word.selection)
+# data.train %>% filter(data.train.features$)
+final.words = names(word.selection$coefficients)[-1]
+
+data.train.features.reduced = data.train.features[,c(final.words, "ID", "logprice")]
+data.val.features.reduced = data.val.features[,c(final.words, "ID", "logprice")]
+
+pred.data = data.train %>% select(Shape, log.Surface, Height_in, Width_in, year, artistliving,
+          lot, position, dealer, origin_author, origin_cat, school_pntg,
+          diff_origin, authorstyle, Material, High_Roller, High_Roller.name, 
+         BigShotPainter, BigShotPainter.name, #authorstandard,author,
+           winningbiddertype, endbuyer, type_intermed, #Interm,
+           engraved, original, prevcoll, othartist, paired, figures, finished,
+          lrgfont) %>% mutate(ID = row_number()) %>% #filter(ID %in% IDs)
+  inner_join(data.train.features.reduced, by = "ID") %>% na.omit() %>% select(-ID)
+pred.data = unclass(pred.data) %>% as.data.frame()
+
+pred.data.val = data.val %>% select(Shape, log.Surface, Height_in, Width_in, year, artistliving,
+          lot, position, dealer, origin_author, origin_cat, school_pntg,
+          diff_origin, authorstyle, Material, High_Roller, High_Roller.name, 
+         BigShotPainter, BigShotPainter.name, #authorstandard,author,
+           winningbiddertype, endbuyer, type_intermed, #Interm,
+           engraved, original, prevcoll, othartist, paired, figures, finished,
+          lrgfont) %>% mutate(ID = row_number()) %>% #filter(ID %in% IDs)
+  left_join(data.val.features.reduced, by = "ID") %>% select(-ID)
+pred.data.val = unclass(pred.data.val) %>% as.data.frame()
+
 ```
+
+
+```{r BMA, include=FALSE}
+library(BAS)
+rmse = function(est, obs) return(sqrt(mean((est-obs)^2)))
+set.seed(123)
+Fold = sample(rep(1:10, ceiling(nrow(pred.data)/5)), nrow(pred.data))
+j=1
+Train = pred.data[Fold!=j ,]
+Test = pred.data[Fold==j ,]
+basg=bas.lm(logprice ~ . + lot:dealer + dealer:origin_cat + dealer:school_pntg +
+              position:dealer + artistliving:position
+      , data=Train%>% select(-authorstyle, -High_Roller, -BigShotPainter, -winningbiddertype),
+      prior="g-prior", a=nrow(Train), modelprior=uniform(), force.heredity = FALSE,
+      method="MCMC", MCMC.iterations = 500000, thin = 20)
+BMA <- predict(basg, estimator = "BMA")
+
+BMA.prediction = predict(basg, newdata = Test, estimator = "BPM", 
+                         se.fit = TRUE, interval = "prediction")
+rmse(exp(confint(BMA.prediction)[,3]), exp(Test$logprice))
+
+x = confint(coef(basg, estimator = "BPM"))
+
+Plot.df = data_frame(Variable = attr(x, "dimnames")[[1]], 
+                  Estimate = x[,3], Lower = x[,1], 
+                  Upper = x[,2]) %>%
+  mutate(In.Zero = ifelse(Upper*Lower<0, 1, 0)) %>%
+  filter(Variable %in% variable.names(BMA))
+Plot.df %>% arrange(desc(Estimate))
+
+ggplot(data = Plot.df, aes(x = Variable, y = Estimate, color = factor(In.Zero)))+ 
+  geom_point() +
+  geom_errorbar(aes(ymin = Lower, ymax = Upper))+ 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+preds = cbind(confint(BMA.prediction)[,3], confint(BMA.prediction)[,1], confint(BMA.prediction)[,2]) 
+
+```
+### Building BMA with remaining features
+
+* Residual: must include a residual plot and a discussion
+
+
+
+
+* discussion of how prediction intervals obtained 
+- HPD regions based on weighted expected values
 
 ```{r 3D Scatterplot with 2 PCs}
 library(scatterplot3d)
@@ -330,168 +400,43 @@ p <- plot_ly(dims, x = ~Dim1, y = ~Dim2, z = ~logprice) %>%
 p
 ```
 
-   
 
 
+5. Assessment of the final model (25 points)
+
+* Model evaluation: must include an evaluation discussion
+
+* Model testing : must include a discussion
+# Test and Holdout
 
 
+* Model result: must include a selection and discussion of the top 10 valued  paintings in the validation data.
+```{r Top10Undervalued}
+# Test
 
-```{r Random Forest - Reduced Data}
-# Create Dataset
-RMSE = function(est, obs) return(sqrt(mean((est-obs)^2)))
-
-reduced.forest.data = as_tibble(PCA$scores.stand) %>% mutate(logprice = data.train.features$logprice)
-colnames(reduced.forest.data) = str_replace_all(colnames(reduced.forest.data), " ", "")
-
-reduced.forest = randomForest(logprice~., data = reduced.forest.data)  # Seeing how this does with the whole dataset
-varImpPlot(reduced.forest)
-
-predictions = data_frame(logprice = data.train.features$logprice, full.pred = predict(test.forest, data.train.features), reduced.pred = predict(reduced.forest, reduced.forest.data))
-
-ggplot(predictions, aes(x = reduced.pred-logprice, y = full.pred-logprice)) + geom_point() + geom_abline(slope = 1, intercept = 0)
-
-RMSE(exp(predictions$reduced.pred), exp(predictions$logprice))
-RMSE(exp(predictions$full.pred), exp(predictions$logprice))
-
-```
-
-
-```{r}
-library(bark)
-library(e1071)
-library(BART)
-library(randomForest)
-library(xgboost)
-```
-
-
-# Trying out a few algorithms
-### Set train and test set
-```{r}
-data.train.features2 = data.train %>% select(logprice, relig, landsALL, lands_sc, lands_elem, lands_figs, 
-                                            lands_ment, arch,mytho, peasant, othgenre, singlefig, 
-                                            portrait, still_life, discauth, history,allegory, 
-                                            pastorale, other) %>% mutate(ID = row_number()) %>%
-  inner_join(data.train.subject[,keepers$col], by = "ID")
-
-pred.data = data.train %>% select(Shape, log.Surface, Height_in, Width_in, year, artistliving,
-          lot, position, dealer, origin_author, origin_cat, school_pntg,
-          diff_origin, authorstyle, Material, High_Roller, High_Roller.name, 
-         BigShotPainter, BigShotPainter.name, #authorstandard,author,
-           winningbiddertype, endbuyer, type_intermed, #Interm,
-           engraved, original, prevcoll, othartist, paired, figures, finished,
-          lrgfont) %>% mutate(ID = row_number()) %>% #filter(ID %in% IDs)
-  inner_join(data.train.features2, by = "ID") %>% na.omit() %>% select(-ID)
-
-pred.data = unclass(pred.data) %>% as.data.frame()
-
-# colnames(data.train.features2)
-# missing = apply(pred.data, 2, function(x) sum(is.na(x)))
-train = sample(nrow(pred.data), nrow(pred.data)*.7)
-pred.data.train = pred.data[train,]
-pred.data.test = pred.data[-train,]
-
-
-pred.data.pc = data.train %>% select(logprice, Shape, log.Surface, Height_in, Width_in, year, artistliving,
-          lot, position, dealer, origin_author, origin_cat, school_pntg,
-          diff_origin, authorstyle, Material, High_Roller, High_Roller.name, 
-         BigShotPainter, BigShotPainter.name, #authorstandard,author,
-           winningbiddertype, endbuyer, type_intermed, #Interm,
-           engraved, original, prevcoll, othartist, paired, figures, finished,
-          lrgfont) %>% mutate(ID = row_number()) %>% #filter(ID %in% IDs)
-  inner_join(PCA.scores, by = "ID") %>% na.omit() %>% select(-ID)
-
-pred.data.pc = unclass(pred.data.pc) %>% as.data.frame()
-pred.data.pc.train = pred.data.pc[train,]
-pred.data.pc.test = pred.data.pc[-train,]
-
-
-```
-
-```{r}
-test.forest = randomForest(logprice~., data = data.train.features)  # Seeing how this does with the whole dataset
-
-pred.model.mat = model.matrix(logprice~., pred.data)
-colnames(pred.data) = c(colnames(pred.data)[1:48], col.keys$key)
-
-barksample = bark(as.matrix(pred.data[train, -1]), pred.data[train, 1], 
-                              x.test = as.matrix(pred.data[-train, -1]),
-                    classification = FALSE,
-                    type="se")
-apply(paintings_train, 2, class)
-
-```
-## Random Forest
-```{r}
-## Full Dataset
-Full.forest = randomForest(logprice~., data = pred.data.train)  # Seeing how this does with the whole dataset
-varImpPlot(Full.forest)
-
-## Reduced Dataset
-reduced.forest = randomForest(logprice~., data = pred.data.pc.train, nodesize=30, ntree=4000)  # Seeing how this does with the whole dataset
-varImpPlot(reduced.forest)
-
-predictions = data_frame(logprice = as.numeric(pred.data.test$logprice), 
-                         reduced.pred = predict(reduced.forest, pred.data.pc.test), 
-                         full.pred = predict(Full.forest, pred.data.test), 
-                         pc.pred = predict(test.pc, pred.data.pc.test))
-
-# RMSE(exp(predictions$reduced.pred), exp(predictions$logprice))
-RMSE(exp(predictions$full.pred), exp(predictions$logprice))
-RMSE(exp(predictions$reduced.pred), exp(predictions$logprice))
-RMSE(exp(predictions$pc.pred), exp(predictions$logprice))
-
-
-
-predictions$full.pred
-
-lm(logprice~., data = test.data)
-test = step(lm(logprice~., data = data.train.features2))
-summary(test)
-
-lm(logprice~., data = pred.data.pc.train)
-test.pc = step(lm(logprice~., data = pred.data.pc.train))
-summary(test.pc)
-
+# Set up a new model to predict the residuals from the first model
 
 
 ```
 
 
-```{r Random Forest}
-library(randomForest)
-test.forest = randomForest(logprice~., data = data.train.features)  # Seeing how this does with the whole dataset
-varImpPlot(test.forest)
-```
 
 
-```{r}
-install.packages("h2o")
-library(h2o)
-h2o.init()
-```
+6. Conclusion (10 points): must include a summary of results and a discussion of things learned. Optional what would you do if you had more time.
+
+Things learned...
+- Painting subject is closely related to painters
+- The context in which the painting was sold was better at predicting than the features of the painting
+- logprice was still 
+
+If I had more time...
+- look for interactions
+- cluster the features
 
 
-```{r boosting gbm}
-rmse = function(obs, pred) { sqrt(mean((obs - pred)^2))}
-mse=function(obs, pred){sum((obs - pred)^2)/length(obs)}
-pred.datah2o = as.h2o(pred.data)
 
-library(randomForest)
-library(glmnet)
-Fold = sample(rep(1:5, ceiling(nrow(pred.data)/5)), nrow(pred.data))
-se = c()
-for (j in 1:5){
-  Train = pred.data[Fold!=j ,] %>% select(-winningbiddertype, -authorstyle)
-  Test = pred.data[Fold==j ,]%>% select(-winningbiddertype, -authorstyle)
-  # model = cv.glmnet(x = Train, y = Train.y, standardize = TRUE, alpha = 1)
-  # model = lm(logprice ~., data = Train)
-  model = randomForest(logprice~., data = Train, nodesize=30, ntree=4000) 
-  se = c(se, rmse(exp(predict(model, Test)), exp(Test$logprice)))
-}
-se
-dim(Train.y)
-
+## Submit Validation Data Predictions
+```{r BAS prediction}
 library(BAS)
 basg=bas.lm(logprice ~ .
 , data=pred.data%>% select(-authorstyle, -winningbiddertype),
@@ -533,6 +478,7 @@ save(predictions, file="predict-validation.Rdata")
 library(mice)
 imputed_Data <- mice(pred.data.val, m=2, maxit = 10, method = 'pmm', seed = 9)
 test.imputation = complete(imputed_Data) 
+# apply(test.imputation, 2, function(x) max(is.na(x)))
 
 test.imputation$log.Surface[is.na(test.imputation$log.Surface)] = mean(test.imputation$log.Surface, na.rm=TRUE)
 
@@ -543,117 +489,6 @@ preds = cbind(confint(BMA.prediction)[,3], confint(BMA.prediction)[,1], confint(
 predictions = data.frame(fit = exp(BMA.prediction$fit), lwr = exp(BMA.prediction$fit-2), upr = exp(BMA.prediction$fit+2))
 save(predictions, file="predict-validation.Rdata")
 
-
 ```
-
-```{r, echo=TRUE}
-set.seed(42)
-n = nrow(pred.data)
-train.ind = sample(1:n, size=3*n/4, rep=FALSE)
-train = as.h2o(pred.data[train.ind,])
-test = as.h2o(pred.data[-train.ind,])
-```
-```{r, echo=TRUE}
-set.seed(42)
-n = nrow(pred.data)
-train.ind = sample(1:n, size=3*n/4, rep=FALSE)
-train = as.h2o(pred.data[train.ind,])
-test = as.h2o(pred.data[-train.ind,])
-```
-
-## Fit GBM
-
-```{r  echo=TRUE}
-nfolds <- 5
-
-my_gbm <- h2o.gbm(y = "logprice",
-                  training_frame = train,
-                  distribution = "gaussian",
-                  ntrees = 100,
-                  max_depth = 4,
-                  min_rows = 2,
-                  learn_rate = 0.2,
-                  nfolds = nfolds,
-                  fold_assignment = "Modulo",
-                  keep_cross_validation_predictions = TRUE,
-                  seed = 1)
-perf.gbm <- h2o.performance(my_gbm, newdata = test)
-
-# Train & Cross-validate a RF
-my_rf <- h2o.randomForest(y = "logprice",
-                          training_frame = train,
-                          ntrees = 50,
-                          nfolds = nfolds,
-                          fold_assignment = "Modulo",
-                          keep_cross_validation_predictions = TRUE,
-                          seed = 1)
-perf.rf <- h2o.performance(my_rf, newdata = test)
-
-my_glm <- h2o.glm(y = "logprice",
-                          training_frame = train,
-                          family="gaussian",
-                          nfolds = nfolds,
-                          fold_assignment = "Modulo",
-                          keep_cross_validation_predictions = TRUE,
-                          seed = 1)
-perf.glm <- h2o.performance(my_glm, newdata = test)
-# Train a stacked ensemble using the GBM and RF above
-ensemble <- h2o.stackedEnsemble(y = "logprice",
-                                training_frame = train,
-                                model_id = "my_ensemble_binomial",
-                                base_models = list(my_gbm, my_rf, my_glm))
-
-# Eval ensemble performance on a test set
-perf.ensemble <- h2o.performance(ensemble, newdata = test)
-
-
-c(h2o.mse(perf.glm), h2o.mse(perf.gbm), h2o.mse(perf.rf))
-
-str(perf.gbm)
-
-```
-
-
-## Submit Validation data
-```{r}
-data.test = format.data(paintings_test)
-data.test.subject = format.subject(data.test)
-data.test.featuers = data.test %>% select(logprice, relig, landsALL, lands_sc, lands_elem, lands_figs, 
-                                            lands_ment, arch,mytho, peasant, othgenre, singlefig, 
-                                            portrait, still_life, discauth, history,allegory, 
-                                            pastorale, other) %>% mutate(ID = row_number()) %>%
-  left_join(data.test.subject[,keepers], by = "ID")
-
-pred.data = data.train %>% select(Shape, log.Surface, Height_in, Width_in, year, artistliving,
-          lot, position, dealer, origin_author, origin_cat, school_pntg,
-          diff_origin, authorstyle, Material, High_Roller, High_Roller.name, 
-         BigShotPainter, BigShotPainter.name, #authorstandard,author,
-           winningbiddertype, endbuyer, type_intermed, #Interm,
-           engraved, original, prevcoll, othartist, paired, figures, finished,
-          lrgfont) %>% mutate(ID = row_number()) %>% #filter(ID %in% IDs)
-  inner_join(data.train.features2, by = "ID") %>% na.omit() %>% select(-ID)
-
-pred.data = unclass(pred.data) %>% as.data.frame()
-
-
-
-
-
-```
-
-
-
-5. Assessment of the final model (25 points)
-
-* Model evaluation: must include an evaluation discussion
-###
-
-* Model testing : must include a discussion
-### Cross Validation
-
-* Model result: must include a selection and discussion of the top 10 valued  paintings in the validation data.
-
-
-6. Conclusion (10 points): must include a summary of results and a discussion of things learned. Optional what would you do if you had more time.
 
 
