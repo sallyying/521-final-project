@@ -353,7 +353,7 @@ pred.data.val = unclass(pred.data.val) %>% as.data.frame()
 ggplot(data.train %>% select(-subject) %>%
     mutate(ID = row_number()) %>% inner_join(data.train.desc) %>%
     group_by(subject) %>% summarize(avg.cost = mean(logprice)/mean(data.train$logprice), freq = n()) %>%
-    filter(freq>length(data.train$logprice)*.015) %>% arrange(desc(avg.cost)), aes(x = )) + 
+    filter(freq>length(data.train$logprice)*.015) %>% arrange(desc(avg.cost)) %>% head(10), aes(x = avg.cost, y = freq, label =subject)) + geom_point()
 
 
 ```
