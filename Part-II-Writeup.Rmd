@@ -2,10 +2,12 @@
 title: "Part-II-Writeup"
 author: "Brian Cozzi, Zhaolin Ying, Wei Zhang"
 date: "12/8/2018"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
-```{r read-data, echo=FALSE, message=FALSE}
+```{r read-data, echo=FALSE, message=FALSE, warning = FALSE}
 load("paintings_train.Rdata")
 load("paintings_test.Rdata")
 load("paintings_validation.Rdata")
@@ -45,7 +47,7 @@ Another major challenge is the redundancy of some variables. For instance, the v
 2. Exploratory data analysis (1 point if improved from before): 
    
 #### Physical Features of Painting
-```{r Physical Features, message=FALSE, echo=FALSE}
+```{r Physical Features, message=FALSE, echo=FALSE, warning = FALSE}
 # Shape and Surface
 plot1 = ggplot(data = paintings_train, 
                aes(x = Surface, y = logprice,
@@ -77,12 +79,12 @@ gridExtra::grid.arrange(plot1, plot2, plot3, plot4, plot5, plot6, nrow = 3)
 
 ```
 
-The plots above show several variables that become increasingly sparse as the values increase. In other words, their distributions are very positively skewed making them good candidates for a log transformation. The plots on the left show the relationship between the untransformed variables on the x axis and log price on the y axis and the plots on the right show the relationship of the log transformed values. Clearly, in all cases, the log transformation makes these plots more readable, though it seems that the only clear linear relationship is with log surface. For log lot, there does not appear to be a discernable relationship with price. With NFigures, we notice there are a lot of . Because these observations could significantly impact the intercept of this relationship, we determined that it would be best to simply transform this into a dichotomous variable with 0 signifiying 0 or 1 figures and 1 signifying more than 1 figures. 
+The plots above show several variables that become increasingly sparse as the values increase. In other words, their distributions are very positively skewed making them good candidates for a log transformation. The plots on the left show the relationship between the untransformed variables on the x axis and log price on the y axis and the plots on the right show the relationship of the log transformed values. Clearly, in all cases, the log transformation makes these plots more readable, though it seems that the only clear linear relationship is with log surface. For log lot, there does not appear to be a discernable relationship with price. Because these observations could significantly impact the intercept of this relationship, we determined that it would be best to simply transform this into a dichotomous variable with 0 signifiying 0 or 1 figures and 1 signifying more than 1 figures. 
 
 We also see from these plots that the dealer, regardless of the variable on the x axis, seems to stratify the price of the painting fairly neatly. Additionally, we can see from the plot with surface that nearly all the paintings are squares or rectangles. 
 
 #### Yearly Effects
-```{r Sales by Dealer and Year, echo=FALSE}
+```{r Sales by Dealer and Year, warning = FALSE, message = FALSE, echo=FALSE}
 
 ggplot(data = paintings_train, aes(x = factor(year), y = logprice, color = dealer)) + 
   geom_jitter() + ggtitle("Sales by Dealer and Year") + xlab("Year")
@@ -95,7 +97,7 @@ Another key takeaway from this is that some dealers were particularly active for
 
 
 ### Data Processing
-```{r}
+```{r, warning = FALSE, message = FALSE, echo=FALSE}
 library(stringr)
 library(tm)
 library(reshape2)
@@ -123,7 +125,7 @@ Our most significant improvement to this dataset came from the parsing of the su
 
 Finally, because there were missing data, we used the R package MICE to fill in these missing values. It is worth noting that this was not done for the training values, but only for the validation values to ensure consistency in the model build. 
 
-```{r Format Data, include = FALSE}
+```{r Format Data, include = FALSE, warning = FALSE, message = FALSE}
 # Formatting for some variables
 # Top 10 bidders
 
@@ -209,7 +211,9 @@ data.val = format.data(paintings_validation)
 
 ```
 
-```{r Formatting Subject}
+
+
+```{r Formatting Subject, echo = FALSE, warning = FALSE, message = FALSE}
 library(dplyr)
 library(stringr)
 library(tm)
@@ -227,10 +231,7 @@ format.subject = function(data.train){
   
   # print(dim(data.train.desc))
   ## Taking a look at the top words
-  # data.train %>% select(-subject) %>%
-  #   mutate(ID = row_number()) %>% inner_join(data.train.desc) %>%
-  #   group_by(subject) %>% summarize(avg.cost = mean(logprice), freq = n()) %>%
-  #   filter(freq>10) %>% arrange(desc(avg.cost))
+  # 
   
   ## Adding each word to the dataset
   # Creating a dataset where each word is a column
@@ -297,22 +298,26 @@ pred.data.val = unclass(pred.data.val) %>% as.data.frame()
 
 
 * Variable selection/shrinkage: must use appropriate method and include an explanation
-In terms of variable selection we used BMA which, because it is an average of many models, did not technically reduce the number of variables we used. However, using this approach, we were able to take into account the posterior marginal inclusion probabilities. 
+In terms of variable selection we used BMA which, because it is an average of many models, did not technically reduce the number of variables we used. However, using this approach, we were able to take into account the posterior marginal inclusion probabilities. Keeping only variables with postierior inclusion probabilities greater than .2, we see there are considerably fewer variables than the 89 we originally started with. Among these, we notice that several of the subject description variables are present.
 
-```{r Feature Reduction, echo = FALSE}
+The plots below show some exploratory work on the data reduction. The first set of plots show the attempted reduction with MCA and the second plot shows the top words by price above average. 
+
+
+```{r Feature Reduction, echo = FALSE, warning = FALSE, message = FALSE}
 library(PCAmixdata)
 PCA.df = lapply(data.train.features%>%select(-logprice, -ID), function(x) as.factor(x)) %>% as.data.frame()
 
-PCA = PCAmix(X.quali = PCA.df, ndim = 15, rename.level = TRUE,
+PCA = PCAmix(X.quali = PCA.df, ndim = 10, rename.level = TRUE,
   weight.col.quanti = NULL, weight.col.quali = NULL, graph = TRUE)
 
 PCA.scores = as.data.frame(PCA$scores.stand) %>% mutate(ID = row_number())
 colnames(PCA.scores) = str_replace_all(colnames(PCA.scores), " ", "")
 
+par(mfrow=c(2,2))
 plot(PCA)
 
 # Most important PCs
-word.selection = step(lm(logprice~., data = data.train.features%>%select(-ID)))
+word.selection = step(lm(logprice~., data = data.train.features%>%select(-ID)), trace = FALSE)
 summary(word.selection)
 # data.train %>% filter(data.train.features$)
 final.words = names(word.selection$coefficients)[-1]
@@ -344,7 +349,18 @@ pred.data.val = unclass(pred.data.val) %>% as.data.frame()
 
 
 
-```{r BMA, echo=FALSE}
+```{r Expensive Words}
+ggplot(data.train %>% select(-subject) %>%
+    mutate(ID = row_number()) %>% inner_join(data.train.desc) %>%
+    group_by(subject) %>% summarize(avg.cost = mean(logprice)/mean(data.train$logprice), freq = n()) %>%
+    filter(freq>length(data.train$logprice)*.015) %>% arrange(desc(avg.cost)), aes(x = )) + 
+
+
+```
+
+
+
+```{r BMA, echo=FALSE, warning = FALSE, message = FALSE}
 library(BAS)
 rmse = function(est, obs) return(sqrt(mean((est-obs)^2)))
 set.seed(123)
@@ -372,58 +388,39 @@ Plot.df = data_frame(Variable = attr(x, "dimnames")[[1]],
   filter(basg$probne0>.2)
 Plot.df %>% arrange(desc(Estimate))
 
+```
+
+```{r, echo=FALSE, warning = FALSE, message = FALSE}
 ggplot(data = Plot.df, aes(x = Variable, y = Estimate, color = factor(In.Zero)))+ 
   geom_point() +
   geom_errorbar(aes(ymin = Lower, ymax = Upper))+ 
-  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 12))
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 8))
 
 ```
+
+
 ### Building BMA with remaining features
 
 * Residuals and Model Evaluation
-```{r Residual Plot, echo = FALSE}
+```{r Residual Plot, echo = FALSE, warning = FALSE, message = FALSE}
 par(mfrow = c(2,2))
 plot(basg)
 
 ```
 
-From the residual plot in the top left we notice, as before, that the residuals appear to be normally distributed with mean 0. There does not to be any trend linear or otherwise. One notable plot from these diagnostics is the plot of marginal inclusion probabilities. Unlike our previous plot which showed either very high or very low marginal inclusion probabilities, this plot shows that there are some variables with values closer to .5 or, at the very least, further from 1. This may suggest some sort of collinearity between this new features which could be caused by the inclusion of some of the words from the subject description. 
+From the residual plot in the top left we notice, as before, that the residuals appear to be normally distributed with mean 0. There does not to be any trend linear or otherwise. One notable plot from these diagnostics is the plot of marginal inclusion probabilities. Unlike our previous plot which showed either very high or very low marginal inclusion probabilities, this plot shows that there are some variables with values closer to .5 or, at the very least, further from 1 and 0. This may suggest some sort of collinearity between this new features which could be caused by the inclusion of some of the words from the subject description. 
 
-* discussion of how prediction intervals obtained 
+* discussion of how prediction intervals obtained  \ 
+
 Normally prediciton intervals for BMA are obtained through the confint procedure in the R package. According to the package description, it constructs approximate 95% Highest Posterior Density intervals using "nsim" draws from the mixture of Student t distributions are obtained with the HPD interval obtained for each of the Monte Carlo iterations.
-
-
-```{r 3D Scatterplot with 2 PCs}
-library(scatterplot3d)
-
-other.col = PCA.scores%>% inner_join(data.train%>% mutate(ID = row_number()), by = "ID") %>% select(dealer)
-
-dims = data_frame(Dim1 = PCA$scores.stand[,1], Dim2 = PCA$scores.stand[,13], 
-                  logprice = data.train.features[,1],
-                  other.col = other.col[,1]
-                  ) %>% filter(Dim1<10 & Dim2<10)
-
-# 3D Scatter
-library(scatterplot3d)
-scatterplot3d(x = dims$Dim1, y = dims$Dim2, z = dims$logprice, color = as.factor(history), pch = 16, angle = 200)
-
-library(plotly)
-p <- plot_ly(dims, x = ~Dim1, y = ~Dim2, z = ~logprice, color=~as.factor(other.col)) %>%
-  add_markers() %>%
-  layout(scene = list(xaxis = list(title = 'Dim1'),
-                     yaxis = list(title = 'Dim2'),
-                     zaxis = list(title = 'LogPrice')))
-p
-
-ggplot(data = dims, aes(x = Dim1, y = Dim2, color = other.col)) + geom_point() + ylim(c(-5,5)) + xlim(c(-1,5))
-
-```
 
 
 
 5. Assessment of the final model (25 points)
 
-* Model testing : must include a discussion
+* Model testing : must include a discussion \ 
+
+
 Because of the nature of bayesian model averaging and because of run time limitations, we chose a random 90% subset which we could use to build the model and used the remaining 10% to test the model. With other models (such as stepwise AIC/BIC selection or LASSO/Ridge Shrinkage), it may be more useful to do k-fold cross validation which was our original intent before we settled on BMA for our final model. In this case, the use evenly partitions the dataset in to k groups and performs the model build with the k-1 groups and testing with the held out group. For our test set, we saw an RMSE of 1492. 
 
 
@@ -431,18 +428,17 @@ Because of the nature of bayesian model averaging and because of run time limita
 
 
 ## Submit Validation Data Predictions
-```{r BAS prediction, echo = FALSE}
+```{r BAS prediction, include = FALSE, echo = FALSE, warning = FALSE, message = FALSE}
 library(mice)
 imputed_Data <- mice(pred.data.val, m=2, maxit = 10, method = 'pmm', seed = 9)
 test.imputation = complete(imputed_Data) 
 # apply(test.imputation, 2, function(x) max(is.na(x)))
 
 #imputing surface
-missing = test.imputation[is.na(test.imputation$log.Surface),]
-log.surface.lm = lm(log.Surface~., data = pred.data)
-# test.imputation$log.Surface[is.na(test.imputation$log.Surface)] = mean(test.imputation$log.Surface, na.rm=TRUE)
-test.imputation[is.na(test.imputation$log.Surface), "log.Surface"] = predict(log.surface.lm, missing)
-
+# missing = test.imputation[is.na(test.imputation$log.Surface),]
+# log.surface.lm = lm(log.Surface~., data = pred.data%>% select(-logprice))
+test.imputation$log.Surface[is.na(test.imputation$log.Surface)] = mean(test.imputation$log.Surface, na.rm=TRUE)
+# test.imputation[is.na(test.imputation$log.Surface), "log.Surface"] = predict(log.surface.lm, missing)
 
 BMA.prediction = predict(basg, newdata = test.imputation, estimator = "BMA", 
                          se.fit = TRUE,
@@ -464,27 +460,23 @@ save(predictions, file="prediction-validation.Rdata")
 
 
 * Model result: must include a selection and discussion of the top 10 valued  paintings in the validation data.
-```{r Top 10 Paintings, echo = FALSE}
+```{r Top 10 Paintings, echo = FALSE, warning = FALSE, message = FALSE}
 predictions %>% mutate(ID = row_number()) %>% inner_join(data.val %>% mutate(ID = row_number()), by= "ID") %>% arrange(desc(fit)) %>% select(subject, BigShotPainter.name, High_Roller.name, dealer, year, fit)%>% arrange(desc(fit)) %>% mutate(BigShotPainter.name = substr(iconv(BigShotPainter.name, to="ASCII//TRANSLIT"),1,10),
                                                 High_Roller.name = substr(iconv(High_Roller.name, to="ASCII//TRANSLIT"),1,10),
-                                                subject = substr(iconv(subject, to="UTF-8"),1,40))%>%
+                                                subject = substr(iconv(subject, to="UTF-8"),1,60))%>%
   head(10) %>% kable(., digits = 0, align = 'c', format = "markdown")
 ```
 
-From these top paintings, we notice a few common themes. First, we see that the dealer is mostly "R" and 1767 is the most frequently occurring year. Interestingly, we notice that only 4 of the paintings do we have painters (Big Shot Painter name) or bidders (High Rollers) that tend to be associated with high-cost paintings. Finally, we notice that the subject contains some of the words we picked out from our earlier analysis. The words Paysages, Homme, and Femme show up in several of these subject descriptions. 
-
-
+From these top paintings, we notice a few common themes. First, we see that the dealer is mostly "R" and 1777 is the most frequently occurring year. Interestingly, we notice that only 4 of the paintings do we have bidders (High Rollers) that tend to be associated with high-cost paintings. Finally, we notice that the subject contains some of the words we picked out from our earlier analysis. The words Paysages, Homme, and Femme show up in several of these subject descriptions. 
 
 
 6. Conclusion (10 points): must include a summary of results and a discussion of things learned. Optional what would you do if you had more time.
 
+
 Summary of result:
+The results here were similar to what we found before: it seems that the content and the physical features of the painting were not nearly as important as the circumstances under which it was sold. Namely, the year and dealer had a much larger impact than any of the words that were mined from the subject description. As we noted early on in our first write up, it appears that the yearly effect and dealer effect appear to be correlated. An important finding is that not only are these two variables related, but it appears that the actual content of the painting was also related to the painter, the dealer, and the year in which it was sold. Therefore, it is even more difficult to discern the relationships between variables because they all seem to be, to at least some degree, dependent on one another. 
 
-Things learned: 
-It's our first time to explore factors that can impact paintings' price. It's normal that the painters' characteristics like name and living status can have impact on their paintings' price. But it's interesting to learn that even the purchasing process can have impact on the paintings' value, like who are the buyer, if there is intermediary and what kind of intermediary. Also, it's funny to see that the physical characteristics like the surface and shape and the size information of the shape can have impact on the paintings' price. But it generally makes sense after giving some thoughts. For example, given other conditions the same, we may find a squre painting more valuable than a painting that is flat and long. We also find that the painting descriptions in the "subject" variable helps to predict the price. Some natural related words (in French expression) like "cows" and "trees" will make the paintings' price higher.  
-
-Further work if time allows:
-If we had more time, we would look further into interactions. Also, we would do further work for the "subject" variable. For now we just add variables for words higher than a frequency shreshold. But it might be better if we cluster the features expressed by the words.
+To that end, it would be very useful to do some form of variable reduction on these data. In an earlier iteration, we looked to reduce the number of physical features we used from the subject description by performing MCA on these features. This was met with limited success, though it stands to reason that more sophisticated clustering or grouping techniques could be done to reduce the collinearity of these features (though it may sacrifice the model's interpretability). 
 
 
 
