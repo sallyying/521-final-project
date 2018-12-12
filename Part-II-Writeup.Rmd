@@ -5,7 +5,7 @@ date: "12/8/2018"
 output: html_document
 ---
 
-```{r read-data, include=FALSE, message=FALSE}
+```{r read-data, echo=FALSE, message=FALSE}
 load("paintings_train.Rdata")
 load("paintings_test.Rdata")
 load("paintings_validation.Rdata")
@@ -123,7 +123,7 @@ Our most significant improvement to this dataset came from the parsing of the su
 
 Finally, because there were missing data, we used the R package MICE to fill in these missing values. It is worth noting that this was not done for the training values, but only for the validation values to ensure consistency in the model build. 
 
-```{r Format Data}
+```{r Format Data, include = FALSE}
 # Formatting for some variables
 # Top 10 bidders
 
@@ -149,7 +149,8 @@ format.data = function(paintings_train){
              Height_in = coalesce(Height_in, Diam_in),
              Width_in = coalesce(Width_in, Diam_in),
              year = factor(year),
-             Nfigures = ifelse(nfigures>1, 1, 0),
+             Nfigures = log(nfigures+1),
+             # Nfigures = ifelse(nfigures>1, 1, 0),
              # Material = as.factor(materialCat),
              Material = material %in% c("cuivre", "argent"),
              position = ifelse(position>1, 1, position),
@@ -171,7 +172,7 @@ format.data = function(paintings_train){
              origin_author = factor(origin_author),
              winningbiddertype = ifelse(is.na(winningbiddertype)|winningbiddertype == "",
                                         "None",
-                                        winningbiddertype) %>% as.factor(),
+                                        substr(winningbiddertype,1,1)) %>% as.factor(),
              type_intermed = factor(ifelse(type_intermed=="", 
                                            "None",
                                            type_intermed))%>% substr(.,1,1),
@@ -203,6 +204,8 @@ format.data = function(paintings_train){
 data.train = format.data(paintings_train)
 data.test = format.data(paintings_test)
 data.val = format.data(paintings_validation)
+
+# paintings_train%>% group_by(substr(winningbiddertype,1,1)) %>% summarize(avg = mean(logprice)/mean(paintings_train$logprice), count = n()) %>% arrange(desc(avg))
 
 ```
 
@@ -291,12 +294,12 @@ pred.data.val = unclass(pred.data.val) %>% as.data.frame()
 ```
 
 
+
+
 * Variable selection/shrinkage: must use appropriate method and include an explanation
+In terms of variable selection we used BMA which, because it is an average of many models, did not technically reduce the number of variables we used. However, using this approach, we were able to take into account the posterior marginal inclusion probabilities. 
 
-The variables 
-
-### Visualizing some of the words with MCA
-```{r Feature Reduction, include = FALSE}
+```{r Feature Reduction, echo = FALSE}
 library(PCAmixdata)
 PCA.df = lapply(data.train.features%>%select(-logprice, -ID), function(x) as.factor(x)) %>% as.data.frame()
 
@@ -340,15 +343,16 @@ pred.data.val = unclass(pred.data.val) %>% as.data.frame()
 ```
 
 
-```{r BMA, include=FALSE}
+
+```{r BMA, echo=FALSE}
 library(BAS)
 rmse = function(est, obs) return(sqrt(mean((est-obs)^2)))
 set.seed(123)
 Fold = sample(rep(1:10, ceiling(nrow(pred.data)/5)), nrow(pred.data))
 j=1
 Train = pred.data[Fold!=j ,]
-Test = pred.data[Fold==j ,]
-basg=bas.lm(logprice ~ . + lot:dealer + Shape:log.surface + 
+Test = pred.data[Fold==j ,] 
+basg=bas.lm(logprice ~ . + lot:dealer + Shape:log.Surface + 
               position:dealer + artistliving:position
       , data=Train%>% select(-authorstyle, -High_Roller, -BigShotPainter, -winningbiddertype),
       prior="g-prior", a=nrow(Train), modelprior=uniform(), 
@@ -389,12 +393,14 @@ From the residual plot in the top left we notice, as before, that the residuals 
 Normally prediciton intervals for BMA are obtained through the confint procedure in the R package. According to the package description, it constructs approximate 95% Highest Posterior Density intervals using "nsim" draws from the mixture of Student t distributions are obtained with the HPD interval obtained for each of the Monte Carlo iterations.
 
 
-
 ```{r 3D Scatterplot with 2 PCs}
 library(scatterplot3d)
 
-dims = data_frame(Dim1 = PCA$scores.stand[,1], Dim2 = PCA$scores.stand[,2], 
-                  logprice = data.train.features[,1], dealer = PA%>% inner_join(data.train, by = "ID") %>% select(origin_cat)
+other.col = PCA.scores%>% inner_join(data.train%>% mutate(ID = row_number()), by = "ID") %>% select(dealer)
+
+dims = data_frame(Dim1 = PCA$scores.stand[,1], Dim2 = PCA$scores.stand[,13], 
+                  logprice = data.train.features[,1],
+                  other.col = other.col[,1]
                   ) %>% filter(Dim1<10 & Dim2<10)
 
 # 3D Scatter
@@ -402,13 +408,15 @@ library(scatterplot3d)
 scatterplot3d(x = dims$Dim1, y = dims$Dim2, z = dims$logprice, color = as.factor(history), pch = 16, angle = 200)
 
 library(plotly)
-p <- plot_ly(dims, x = ~Dim1, y = ~Dim2, z = ~logprice, color=~as.factor(dealer)) %>%
+p <- plot_ly(dims, x = ~Dim1, y = ~Dim2, z = ~logprice, color=~as.factor(other.col)) %>%
   add_markers() %>%
   layout(scene = list(xaxis = list(title = 'Dim1'),
                      yaxis = list(title = 'Dim2'),
                      zaxis = list(title = 'LogPrice')))
-
 p
+
+ggplot(data = dims, aes(x = Dim1, y = Dim2, color = other.col)) + geom_point() + ylim(c(-5,5)) + xlim(c(-1,5))
+
 ```
 
 
@@ -420,26 +428,21 @@ Because of the nature of bayesian model averaging and because of run time limita
 
 
 
-* Model result: must include a selection and discussion of the top 10 valued  paintings in the validation data.
-```{r Top 10 Paintings, echo = FALSE}
-predictions %>% mutate(ID = row_number()) %>% inner_join(data.val %>% mutate(ID = row_number()), by= "ID") %>% arrange(desc(fit)) %>% select(subject, BigShotPainter.name, High_Roller.name, dealer, year, fit)%>% arrange(desc(fit)) %>% mutate(BigShotPainter.name = substr(iconv(BigShotPainter.name, to="ASCII//TRANSLIT"),1,10),
-                                                High_Roller.name = substr(iconv(High_Roller.name, to="ASCII//TRANSLIT"),1,10),
-                                                subject = substr(iconv(subject, to="UTF-8"),1,40))%>%
-  head(10) %>% kable(., digits = 0, align = 'c', format = "markdown")
-```
-
-From these top paintings, we notice a few common themes. First, we see that the dealer is mostly "R" and 1767 is the most frequently occurring year. Interestingly, we notice that only 4 of the paintings do we have painters (Big Shot Painter name) or bidders (High Rollers) that tend to be associated with high-cost paintings. Finally, we notice that the subject contains some of the words we picked out from our earlier analysis. The words Paysages, Homme, and Femme show up in several of these subject descriptions. 
-
 
 
 ## Submit Validation Data Predictions
-```{r BAS prediction, cache = TRUE, echo = FALSE}
+```{r BAS prediction, echo = FALSE}
 library(mice)
 imputed_Data <- mice(pred.data.val, m=2, maxit = 10, method = 'pmm', seed = 9)
 test.imputation = complete(imputed_Data) 
 # apply(test.imputation, 2, function(x) max(is.na(x)))
 
-test.imputation$log.Surface[is.na(test.imputation$log.Surface)] = mean(test.imputation$log.Surface, na.rm=TRUE)
+#imputing surface
+missing = test.imputation[is.na(test.imputation$log.Surface),]
+log.surface.lm = lm(log.Surface~., data = pred.data)
+# test.imputation$log.Surface[is.na(test.imputation$log.Surface)] = mean(test.imputation$log.Surface, na.rm=TRUE)
+test.imputation[is.na(test.imputation$log.Surface), "log.Surface"] = predict(log.surface.lm, missing)
+
 
 BMA.prediction = predict(basg, newdata = test.imputation, estimator = "BMA", 
                          se.fit = TRUE,
@@ -459,6 +462,16 @@ save(predictions, file="prediction-validation.Rdata")
 
 ```
 
+
+* Model result: must include a selection and discussion of the top 10 valued  paintings in the validation data.
+```{r Top 10 Paintings, echo = FALSE}
+predictions %>% mutate(ID = row_number()) %>% inner_join(data.val %>% mutate(ID = row_number()), by= "ID") %>% arrange(desc(fit)) %>% select(subject, BigShotPainter.name, High_Roller.name, dealer, year, fit)%>% arrange(desc(fit)) %>% mutate(BigShotPainter.name = substr(iconv(BigShotPainter.name, to="ASCII//TRANSLIT"),1,10),
+                                                High_Roller.name = substr(iconv(High_Roller.name, to="ASCII//TRANSLIT"),1,10),
+                                                subject = substr(iconv(subject, to="UTF-8"),1,40))%>%
+  head(10) %>% kable(., digits = 0, align = 'c', format = "markdown")
+```
+
+From these top paintings, we notice a few common themes. First, we see that the dealer is mostly "R" and 1767 is the most frequently occurring year. Interestingly, we notice that only 4 of the paintings do we have painters (Big Shot Painter name) or bidders (High Rollers) that tend to be associated with high-cost paintings. Finally, we notice that the subject contains some of the words we picked out from our earlier analysis. The words Paysages, Homme, and Femme show up in several of these subject descriptions. 
 
 
 
