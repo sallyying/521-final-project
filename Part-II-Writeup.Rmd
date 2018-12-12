@@ -106,7 +106,7 @@ library(tidyverse)
 3. Discussion of preliminary model Part I (5 points)
 Discuss performance based on leader board results and suggested refinements.
 
-From the leader board results of Part I, we can see that our team (team 9) has good prediction performance in general. We have the smallest bias. And our coverage is in the middle-to-high level. Our maxDeviation and meanabsdeviation are also very small compared to other groups. Our rmse value is in the middle level. So we think we should minimize rmse further in our Part II model. On the one hand, we try to include excluded variables like "subjects" to see if it can help to improve our model. On the other hand, We are considering using non-linear models like gradient boosting model, random forest and bart to see if it can make our predictions better. We would also check BMA for comparison. 
+From the leader board results of Part I, we can see that our team (team 9) has the smallest bias. And our coverage is in the middle-to-high level.Our maxDeviation and meanabsdeviation are also very small compared to other groups. Our rmse value is in the middle level. So we think we should minimize rmse further in our Part II model. On the one hand, we try to include excluded variables like "subjects" to see if it can help to improve our model. On the other hand, We are considering using non-linear models like gradient boosting model, random forest and bart to see if it can make our predictions better.  
 
 
 
@@ -157,11 +157,11 @@ format.data = function(paintings_train){
              High_Roller = ifelse(winningbidder %in% 
                                     unlist(HighRollers), 1, 0),
              High_Roller.name = ifelse(winningbidder %in% 
-                                    unlist(HighRollers), winningbidder, "Cheap"),
+                                    unlist(HighRollers), winningbidder, "NA"),
              BigShotPainter = ifelse(authorstandard %in% 
                                     unlist(BigShotPainters), 1, 0),
              BigShotPainter.name = ifelse(authorstandard %in% 
-                                    unlist(BigShotPainters), authorstandard, "Hack"),
+                                    unlist(BigShotPainters), authorstandard, "NA"),
              endbuyer = ifelse(endbuyer=="U"|winningbiddertype == "",
                                         "N",
                                         winningbiddertype) %>% 
@@ -376,13 +376,19 @@ ggplot(data = Plot.df, aes(x = Variable, y = Estimate, color = factor(In.Zero)))
 ```
 ### Building BMA with remaining features
 
-* Residual: must include a residual plot and a discussion
+* Residuals and Model Evaluation
+```{r Residual Plot, echo = FALSE}
+par(mfrow = c(2,2))
+plot(basg)
 
+```
 
-
+From the residual plot in the top left we notice, as before, that the residuals appear to be normally distributed with mean 0. There does not to be any trend linear or otherwise. One notable plot from these diagnostics is the plot of marginal inclusion probabilities. Unlike our previous plot which showed either very high or very low marginal inclusion probabilities, this plot shows that there are some variables with values closer to .5 or, at the very least, further from 1. This may suggest some sort of collinearity between this new features which could be caused by the inclusion of some of the words from the subject description. 
 
 * discussion of how prediction intervals obtained 
-- HPD regions based on weighted expected values
+Normally prediciton intervals for BMA are obtained through the confint procedure in the R package. According to the package description, it constructs approximate 95% Highest Posterior Density intervals using "nsim" draws from the mixture of Student t distributions are obtained with the HPD interval obtained for each of the Monte Carlo iterations.
+
+
 
 ```{r 3D Scatterplot with 2 PCs}
 library(scatterplot3d)
@@ -409,14 +415,25 @@ p
 
 5. Assessment of the final model (25 points)
 
-* Model evaluation: must include an evaluation discussion
-
 * Model testing : must include a discussion
-# Test and Holdout
+Because of the nature of bayesian model averaging and because of run time limitations, we chose a random 90% subset which we could use to build the model and used the remaining 10% to test the model. With other models (such as stepwise AIC/BIC selection or LASSO/Ridge Shrinkage), it may be more useful to do k-fold cross validation which was our original intent before we settled on BMA for our final model. In this case, the use evenly partitions the dataset in to k groups and performs the model build with the k-1 groups and testing with the held out group. For our test set, we saw an RMSE of 1492. 
+
+
 
 * Model result: must include a selection and discussion of the top 10 valued  paintings in the validation data.
+```{r Top 10 Paintings, echo = FALSE}
+predictions %>% mutate(ID = row_number()) %>% inner_join(data.val %>% mutate(ID = row_number()), by= "ID") %>% arrange(desc(fit)) %>% select(subject, BigShotPainter.name, High_Roller.name, dealer, year, fit)%>% arrange(desc(fit)) %>% mutate(BigShotPainter.name = substr(iconv(BigShotPainter.name, to="ASCII//TRANSLIT"),1,10),
+                                                High_Roller.name = substr(iconv(High_Roller.name, to="ASCII//TRANSLIT"),1,10),
+                                                subject = substr(iconv(subject, to="UTF-8"),1,40))%>%
+  head(10) %>% kable(., digits = 0, align = 'c', format = "markdown")
+```
+
+From these top paintings, we notice a few common themes. First, we see that the dealer is mostly "R" and 1767 is the most frequently occurring year. Interestingly, we notice that only 4 of the paintings do we have painters (Big Shot Painter name) or bidders (High Rollers) that tend to be associated with high-cost paintings. Finally, we notice that the subject contains some of the words we picked out from our earlier analysis. The words Paysages, Homme, and Femme show up in several of these subject descriptions. 
+
+
+
 ## Submit Validation Data Predictions
-```{r BAS prediction, cache = TRUE, include = FALSE}
+```{r BAS prediction, cache = TRUE, echo = FALSE}
 library(mice)
 imputed_Data <- mice(pred.data.val, m=2, maxit = 10, method = 'pmm', seed = 9)
 test.imputation = complete(imputed_Data) 
@@ -437,13 +454,12 @@ predictions = data.frame(fit = exp(BMA.prediction$fit),
                          lwr = exp(BMA.prediction$fit - 2*BMA.prediction$se.bma.pred), 
                          upr = exp(BMA.prediction$fit + 2*BMA.prediction$se.bma.pred))
 save(predictions, file="predict-validation.Rdata")
+save(predictions, file="prediction-validation.Rdata")
+
 
 ```
 
-```{r}
-Top10.Val = predictions %>% arrange(desc(fit)) %>% head(10) %>% kable
 
-```
 
 
 
@@ -451,11 +467,12 @@ Top10.Val = predictions %>% arrange(desc(fit)) %>% head(10) %>% kable
 Summary of result:
 
 Things learned: 
-It's our first time to explore factors that can impact paintings' price. It's normal that the painters' characteristics like name and living status can have impact on their paintings' price. But it's interesting to learn that even the purchasing process can have impact on the paintings' value, like who are the buyer, if there is intermediary and what kind of intermediary. Also, it's funny to see that the physical characteristics like the surface and shape and the size information of the shape can have impact on the paintings' price. But it generally makes sense after giving some thoughts. For example, given other conditions the same, we may find a squre painting more valuable than a painting that is flat and long. We also find that the painting descriptions in the "subject" variable helps to predict the price. Some natural related words (in French expression) like "cows" and "trees" will make the paintings' price higher.  
+It's our first time to explore factors that can impact paintings' price. It's normal that the painters' characteristics like name and living status can have impact on their paintings' price. But it's interesting to learn that even the purchasing process can have impact on the paintings' value, like who are the buyer, if there is intermediary and what kind of intermediary. Also, it's funny to see that the physical characteristics like the surface and shape and the size information of the shape can have impact on the paintings' price. But it generally makes sense after giving some thoughts. For example, given other conditions the same, we may find a squre painting more valuable than a painting that is flat and long. We also find that the painting descriptions in the "subject" variable helps to predict the price.
 
-Further work if time allows:
-If we had more time, we would look further into interactions. Also, we would do further work for the "subject" variable. For now we just add variables for words higher than a frequency shreshold. But it might be better if we cluster the features expressed by the words.
 
+If I had more time...
+- look for interactions
+- cluster the features
 
 
 
