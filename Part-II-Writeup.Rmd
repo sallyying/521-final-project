@@ -18,6 +18,7 @@ library(stringr)
 library(ggplot2) 
 library(glmnet)
 library(knitr)
+library(BAS)
 
 ```
 
@@ -149,6 +150,7 @@ format.data = function(paintings_train){
              Width_in = coalesce(Width_in, Diam_in),
              year = factor(year),
              Nfigures = ifelse(nfigures>1, 1, 0),
+             # Material = as.factor(materialCat),
              Material = material %in% c("cuivre", "argent"),
              position = ifelse(position>1, 1, position),
              # Buyer Characteristics
@@ -285,6 +287,7 @@ pred.data.val = data.val %>% select(Shape, log.Surface, Height_in, Width_in, yea
 
 pred.data.val = unclass(pred.data.val) %>% as.data.frame()
 
+
 ```
 
 
@@ -334,8 +337,6 @@ pred.data.val = data.val %>% select(Shape, log.Surface, Height_in, Width_in, yea
   left_join(data.val.features.reduced, by = "ID") %>% select(-ID)
 pred.data.val = unclass(pred.data.val) %>% as.data.frame()
 
-
-summary(lm(logprice ~ .^2, data=Train%>% select(-authorstyle, -High_Roller, -BigShotPainter, -winningbiddertype)))
 ```
 
 
@@ -347,11 +348,11 @@ Fold = sample(rep(1:10, ceiling(nrow(pred.data)/5)), nrow(pred.data))
 j=1
 Train = pred.data[Fold!=j ,]
 Test = pred.data[Fold==j ,]
-basg=bas.lm(logprice ~ . + lot:dealer + 
+basg=bas.lm(logprice ~ . + lot:dealer + Shape:log.surface + 
               position:dealer + artistliving:position
       , data=Train%>% select(-authorstyle, -High_Roller, -BigShotPainter, -winningbiddertype),
       prior="g-prior", a=nrow(Train), modelprior=uniform(), 
-      method="MCMC", MCMC.iterations = 5000000, thin = 20)
+      method="MCMC", MCMC.iterations = 500000, thin = 20)
 BMA <- predict(basg, estimator = "BMA")
 
 BMA.prediction = predict(basg, newdata = Test, estimator = "BMA", 
@@ -364,15 +365,13 @@ Plot.df = data_frame(Variable = attr(x, "dimnames")[[1]],
                   Estimate = x[,3], Lower = x[,1], 
                   Upper = x[,2]) %>%
   mutate(In.Zero = ifelse(Upper*Lower<0, 1, 0)) %>%
-  filter(Variable %in% variable.names(BMA))
+  filter(basg$probne0>.2)
 Plot.df %>% arrange(desc(Estimate))
 
 ggplot(data = Plot.df, aes(x = Variable, y = Estimate, color = factor(In.Zero)))+ 
   geom_point() +
   geom_errorbar(aes(ymin = Lower, ymax = Upper))+ 
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-
-preds = cbind(confint(BMA.prediction)[,3], confint(BMA.prediction)[,1], confint(BMA.prediction)[,2]) 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 12))
 
 ```
 ### Building BMA with remaining features
@@ -388,13 +387,16 @@ preds = cbind(confint(BMA.prediction)[,3], confint(BMA.prediction)[,1], confint(
 ```{r 3D Scatterplot with 2 PCs}
 library(scatterplot3d)
 
-dims = data_frame(Dim1 = PCA$scores.stand[,1], Dim2 = PCA$scores.stand[,13], logprice = data.train.features[,1]) %>% filter(Dim1<10 & Dim2<10)
+dims = data_frame(Dim1 = PCA$scores.stand[,1], Dim2 = PCA$scores.stand[,2], 
+                  logprice = data.train.features[,1], dealer = PA%>% inner_join(data.train, by = "ID") %>% select(origin_cat)
+                  ) %>% filter(Dim1<10 & Dim2<10)
 
 # 3D Scatter
-scatterplot3d(x = dims$Dim1, y = dims$Dim2, z = dims$logprice, pch = 16, angle = 200)
+library(scatterplot3d)
+scatterplot3d(x = dims$Dim1, y = dims$Dim2, z = dims$logprice, color = as.factor(history), pch = 16, angle = 200)
 
 library(plotly)
-p <- plot_ly(dims, x = ~Dim1, y = ~Dim2, z = ~logprice) %>%
+p <- plot_ly(dims, x = ~Dim1, y = ~Dim2, z = ~logprice, color=~as.factor(dealer)) %>%
   add_markers() %>%
   layout(scene = list(xaxis = list(title = 'Dim1'),
                      yaxis = list(title = 'Dim2'),
@@ -412,16 +414,36 @@ p
 * Model testing : must include a discussion
 # Test and Holdout
 
-
 * Model result: must include a selection and discussion of the top 10 valued  paintings in the validation data.
-```{r Top10Undervalued}
-# Test
+## Submit Validation Data Predictions
+```{r BAS prediction, cache = TRUE, include = FALSE}
+library(mice)
+imputed_Data <- mice(pred.data.val, m=2, maxit = 10, method = 'pmm', seed = 9)
+test.imputation = complete(imputed_Data) 
+# apply(test.imputation, 2, function(x) max(is.na(x)))
 
-# Set up a new model to predict the residuals from the first model
+test.imputation$log.Surface[is.na(test.imputation$log.Surface)] = mean(test.imputation$log.Surface, na.rm=TRUE)
 
+BMA.prediction = predict(basg, newdata = test.imputation, estimator = "BMA", 
+                         se.fit = TRUE,
+                         interval = "prediction")
+
+# str(BMA.prediction)
+# x = confint(BMA.prediction)
+# preds = cbind(confint(BMA.prediction)[,3], confint(BMA.prediction)[,1], confint(BMA.prediction)[,2]) 
+
+# predictions = data.frame(fit = exp(BMA.prediction$fit), lwr = exp(BMA.prediction$fit-2), upr = exp(BMA.prediction$fit+2))
+predictions = data.frame(fit = exp(BMA.prediction$fit), 
+                         lwr = exp(BMA.prediction$fit - 2*BMA.prediction$se.bma.pred), 
+                         upr = exp(BMA.prediction$fit + 2*BMA.prediction$se.bma.pred))
+save(predictions, file="predict-validation.Rdata")
 
 ```
 
+```{r}
+Top10.Val = predictions %>% arrange(desc(fit)) %>% head(10) %>% kable
+
+```
 
 
 
@@ -438,31 +460,5 @@ If I had more time...
 
 
 
-## Submit Validation Data Predictions
-```{r BAS prediction}
-## 
-library(mice)
-imputed_Data <- mice(pred.data.val, m=2, maxit = 10, method = 'pmm', seed = 9)
-test.imputation = complete(imputed_Data) 
-# apply(test.imputation, 2, function(x) max(is.na(x)))
-
-test.imputation$log.Surface[is.na(test.imputation$log.Surface)] = mean(test.imputation$log.Surface, na.rm=TRUE)
-
-BMA.prediction = predict(basg, newdata = test.imputation, estimator = "BMA", 
-                         se.fit = TRUE,
-                         interval = "prediction")
-
-str(BMA.prediction)
-x = confint(BMA.prediction)
-preds = cbind(confint(BMA.prediction)[,3], confint(BMA.prediction)[,1], confint(BMA.prediction)[,2]) 
-
-# predictions = data.frame(fit = exp(BMA.prediction$fit), lwr = exp(BMA.prediction$fit-2), upr = exp(BMA.prediction$fit+2))
-predictions = data.frame(fit = exp(BMA.prediction$fit), 
-                         lwr = exp(BMA.prediction$fit - 2*BMA.prediction$se.bma.pred), 
-                         upr = exp(BMA.prediction$fit + 2*BMA.prediction$se.bma.pred))
-save(predictions, file="predict-validation.Rdata")
-  
-
-```
 
 
