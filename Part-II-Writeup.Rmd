@@ -106,7 +106,7 @@ library(tidyverse)
 3. Discussion of preliminary model Part I (5 points)
 Discuss performance based on leader board results and suggested refinements.
 
-From the leader board results of Part I, we can see that our team (team 9) has the smallest bias. And our coverage is in the middle-to-high level.Our maxDeviation and meanabsdeviation are also very small compared to other groups. Our rmse value is in the middle level. So we think we should minimize rmse further in our Part II model. On the one hand, we try to include excluded variables like "subjects" to see if it can help to improve our model. On the other hand, We are considering using non-linear models like gradient boosting model, random forest and bart to see if it can make our predictions better.  
+From the leader board results of Part I, we can see that our team (team 9) has good prediction performance in general. We have the smallest bias. And our coverage is in the middle-to-high level. Our maxDeviation and meanabsdeviation are also very small compared to other groups. Our rmse value is in the middle level. So we think we should minimize rmse further in our Part II model. On the one hand, we try to include excluded variables like "subjects" to see if it can help to improve our model. On the other hand, We are considering using non-linear models like gradient boosting model, random forest and bart to see if it can make our predictions better. We would also check BMA for comparison. 
 
 
 
@@ -451,12 +451,11 @@ Top10.Val = predictions %>% arrange(desc(fit)) %>% head(10) %>% kable
 Summary of result:
 
 Things learned: 
-It's our first time to explore factors that can impact paintings' price. It's normal that the painters' characteristics like name and living status can have impact on their paintings' price. But it's interesting to learn that even the purchasing process can have impact on the paintings' value, like who are the buyer, if there is intermediary and what kind of intermediary. Also, it's funny to see that the physical characteristics like the surface and shape and the size information of the shape can have impact on the paintings' price. But it generally makes sense after giving some thoughts. For example, given other conditions the same, we may find a squre painting more valuable than a painting that is flat and long. We also find that the painting descriptions in the "subject" variable helps to predict the price.
+It's our first time to explore factors that can impact paintings' price. It's normal that the painters' characteristics like name and living status can have impact on their paintings' price. But it's interesting to learn that even the purchasing process can have impact on the paintings' value, like who are the buyer, if there is intermediary and what kind of intermediary. Also, it's funny to see that the physical characteristics like the surface and shape and the size information of the shape can have impact on the paintings' price. But it generally makes sense after giving some thoughts. For example, given other conditions the same, we may find a squre painting more valuable than a painting that is flat and long. We also find that the painting descriptions in the "subject" variable helps to predict the price. Some natural related words (in French expression) like "cows" and "trees" will make the paintings' price higher.  
 
+Further work if time allows:
+If we had more time, we would look further into interactions. Also, we would do further work for the "subject" variable. For now we just add variables for words higher than a frequency shreshold. But it might be better if we cluster the features expressed by the words.
 
-If I had more time...
-- look for interactions
-- cluster the features
 
 
 
