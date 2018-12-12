@@ -350,16 +350,6 @@ pred.data.val = unclass(pred.data.val) %>% as.data.frame()
 
 
 
-```{r Expensive Words}
-ggplot(data.train %>% select(-subject) %>%
-    mutate(ID = row_number()) %>% inner_join(data.train.desc) %>%
-    group_by(subject) %>% summarize(avg.cost = mean(logprice)/mean(data.train$logprice), freq = n()) %>%
-    filter(freq>length(data.train$logprice)*.015) %>% arrange(desc(avg.cost)) %>% head(10), aes(x = avg.cost, y = freq, label =subject)) + geom_point()
-
-
-```
-
-
 
 ```{r BMA, echo=FALSE, warning = FALSE, message = FALSE}
 library(BAS)
@@ -426,6 +416,14 @@ Because of the nature of bayesian model averaging and because of run time limita
 
 
 
+```{r Expensive Words}
+ggplot(data.train %>% select(-subject) %>%
+    mutate(ID = row_number()) %>% inner_join(data.train.desc) %>%
+    group_by(subject) %>% summarize(avg.cost = mean(logprice)/mean(data.train$logprice), freq = n()) %>%
+    filter(freq>length(data.train$logprice)*.015) %>% arrange(desc(avg.cost)) %>% head(10), aes(x = avg.cost, y = freq, color =subject)) + geom_label(aes(label = subject))
+
+
+```
 
 
 ## Submit Validation Data Predictions
@@ -454,6 +452,8 @@ BMA.prediction = predict(basg, newdata = test.imputation, estimator = "BMA",
 predictions = data.frame(fit = exp(BMA.prediction$fit), 
                          lwr = exp(BMA.prediction$fit - 2*BMA.prediction$se.bma.pred), 
                          upr = exp(BMA.prediction$fit + 2*BMA.prediction$se.bma.pred))
+
+
 save(predictions, file="predict-validation.Rdata")
 save(predictions, file="prediction-validation.Rdata")
 
