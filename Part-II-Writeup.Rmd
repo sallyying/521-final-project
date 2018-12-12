@@ -150,7 +150,7 @@ format.data = function(paintings_train){
              log.Surface = log(Surface),
              Height_in = coalesce(Height_in, Diam_in),
              Width_in = coalesce(Width_in, Diam_in),
-             year = factor(year),
+#year = factor(year),
              Nfigures = log(nfigures+1),
              # Nfigures = ifelse(nfigures>1, 1, 0),
              # Material = as.factor(materialCat),
@@ -345,6 +345,7 @@ pred.data.val = data.val %>% select(Shape, log.Surface, Height_in, Width_in, yea
   left_join(data.val.features.reduced, by = "ID") %>% select(-ID)
 pred.data.val = unclass(pred.data.val) %>% as.data.frame()
 
+
 ```
 
 
@@ -439,6 +440,7 @@ test.imputation = complete(imputed_Data)
 # log.surface.lm = lm(log.Surface~., data = pred.data%>% select(-logprice))
 test.imputation$log.Surface[is.na(test.imputation$log.Surface)] = mean(test.imputation$log.Surface, na.rm=TRUE)
 # test.imputation[is.na(test.imputation$log.Surface), "log.Surface"] = predict(log.surface.lm, missing)
+
 
 BMA.prediction = predict(basg, newdata = test.imputation, estimator = "BMA", 
                          se.fit = TRUE,
