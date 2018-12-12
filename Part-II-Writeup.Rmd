@@ -340,6 +340,8 @@ pred.data.val = data.val %>% select(Shape, log.Surface, Height_in, Width_in, yea
   left_join(data.val.features.reduced, by = "ID") %>% select(-ID)
 pred.data.val = unclass(pred.data.val) %>% as.data.frame()
 
+pred.data$year=as.numeric(pred.data$year)
+
 ```
 
 
@@ -443,6 +445,7 @@ log.surface.lm = lm(log.Surface~., data = pred.data)
 # test.imputation$log.Surface[is.na(test.imputation$log.Surface)] = mean(test.imputation$log.Surface, na.rm=TRUE)
 test.imputation[is.na(test.imputation$log.Surface), "log.Surface"] = predict(log.surface.lm, missing)
 
+test.imputation$year=as.numeric(test.imputation$year)
 
 BMA.prediction = predict(basg, newdata = test.imputation, estimator = "BMA", 
                          se.fit = TRUE,
