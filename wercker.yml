@@ -18,4 +18,10 @@ build:
           wget --quiet "http://www2.stat.duke.edu/courses/Fall18/sta521/knitr/Final_Project/Validation_Check.R"
           Rscript Validation_Check.R $TEAM $MONGO_URL $valdata_url
 
+    - script:
+      name: Score Validation File
+      code: |
+          wget --quiet "http://www2.stat.duke.edu/courses/Fall18/sta521/knitr/Final_Project/Validation_Scoring.R"
+          Rscript Validation_Scoring.R $TEAM $MONGO_URL $valdata_url
+
 
