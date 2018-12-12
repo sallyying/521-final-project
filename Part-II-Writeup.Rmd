@@ -429,12 +429,11 @@ p
 Summary of result:
 
 Things learned: 
-It's our first time to explore factors that can impact paintings' price. It's normal that the painters' characteristics like name and living status can have impact on their paintings' price. But it's interesting to learn that even the purchasing process can have impact on the paintings' value, like who are the buyer, if there is intermediary and what kind of intermediary. Also, it's funny to see that the physical characteristics like the surface and shape and the size information of the shape can have impact on the paintings' price. But it generally makes sense after giving some thoughts. For example, given other conditions the same, we may find a squre painting more valuable than a painting that is flat and long. We also find that the painting descriptions in the "subject" variable helps to predict the price.
+It's our first time to explore factors that can impact paintings' price. It's normal that the painters' characteristics like name and living status can have impact on their paintings' price. But it's interesting to learn that even the purchasing process can have impact on the paintings' value, like who are the buyer, if there is intermediary and what kind of intermediary. Also, it's funny to see that the physical characteristics like the surface and shape and the size information of the shape can have impact on the paintings' price. But it generally makes sense after giving some thoughts. For example, given other conditions the same, we may find a squre painting more valuable than a painting that is flat and long. We also find that the painting descriptions in the "subject" variable helps to predict the price. Some natural related words (in French expression) like "cows" and "trees" will make the paintings' price higher.  
 
+Further work if time allows:
+If we had more time, we would look further into interactions. Also, we would do further work for the "subject" variable. For now we just add variables for words higher than a frequency shreshold. But it might be better if we cluster the features expressed by the words.
 
-If I had more time...
-- look for interactions
-- cluster the features
 
 
 
