@@ -8,7 +8,14 @@ build:
           apt-get install libsasl2-dev
           install2.r mongolite
     - script:
-      name: Final scores
+      name: Test Scores
       code: |
           wget --quiet --no-check-certificate http://www.stat.duke.edu/courses/Fall18/sta521/knitr/Final_Project/Final_Scoring.R
           Rscript Final_Scoring.R $TEAM $MONGO_URL $TESTDATA_URL
+    - script:
+      name: Check Validation File Exists
+      code: |
+          wget --quiet "http://www2.stat.duke.edu/courses/Fall18/sta521/knitr/Final_Project/Validation_Check.R"
+          Rscript Validation_Check.R $TEAM $MONGO_URL $valdata_url
+
+
